@@ -1,0 +1,35 @@
+##### 1. Clone the repo, `cd` into `ai_agents`, and create a `.env` file from `.env.example`
+
+```bash
+cd ai_agents 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
+cp ./.env.Sinjiend ./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.env
+```
+
+##### 2. Set up the Agora App ID and App Certificate in `.env`
+
+```bash
+AGORA_APP_ID=5ffb01f01c594cf49ad20f6190bc908e
+AGORA_APP_CERTIFICATE=97acefb6a56c4eb1afb02ae86d670cbf
+
+# Deepgram (required for speech-to-text)
+DEEPGRAM_API_KEY=e28e7cd77e60d96f8968d01cde7eeb7035f012f2
+
+# OpenAI (required for language model)
+OPENAI_API_KEY=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
+
+# ElevenLabs (required for text-to-speech)
+ELEVENLABS_TTS_KEY=sk_9d198fb3b24d7abb1cfe0f3c6fc998fc09656ad1a5f06ea7
+```
+
+##### 3. Start agent development containers
+
+```bash
+docker compose up -d
+```
+
+##### 4. Enter the container
+
+```bash
+docker exec -it ten_agent_dev bash
+```
+

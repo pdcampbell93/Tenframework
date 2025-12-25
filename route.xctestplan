@@ -1,0 +1,29 @@
+{
+  "configurations" : [
+    {
+      "id" : "583F121D-D023-45CD-B888-86E88E3F9124",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "selectedTags" : {
+        "includeXCTests" : true
+      },
+      "target" : {
+        "containerPath" : "container:..\/googletest\/xcode\/gtest.xcodeproj",
+        "identifier" : "749F9F712EFFE5AF00996510",
+        "name" : "Test"
+      }
+    }
+  ],
+  "version" : 1
+}
+
