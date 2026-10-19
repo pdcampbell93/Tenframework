@@ -9,7 +9,7 @@
       ]
     }
   },
-  "workspaceFolder": "/workspaces/ten-framework/ai_agents",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}/ai_agents",
   "forwardPorts": [
     3000,
     49483,
