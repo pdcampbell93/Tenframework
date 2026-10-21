@@ -64,6 +64,8 @@ export default function LightField(props: Props) {
     };
 
     const draw = () => {
+      // Embedded panels stay mounted while hidden; their canvas can be 1×1.
+      if (width < 2 || height < 2) return;
       const state = latest.current;
       const t = clock.current * .00072;
       const cx = width * .5;
@@ -126,7 +128,7 @@ export default function LightField(props: Props) {
       const rings = 4 + Math.round(frequency * 7) + Math.round(focus * 2);
       for (let i = 0; i < rings; i++) {
         const phase = t * (1 + frequency * 1.8) + i * (TAU / rings);
-        const radius = base * (.095 + i * (.035 + calm * .006)) + Math.sin(phase) * (4 + intensity * 10);
+        const radius = Math.max(.1, base * (.095 + i * (.035 + calm * .006)) + Math.sin(phase) * (4 + intensity * 10));
         const alpha = (.09 + intensity * .13) * (1 - i / (rings + 2));
         ctx.beginPath();
         if (state.mode === "resonance") {
