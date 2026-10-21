@@ -142,4 +142,5 @@ ai_agents/.idea
 ai_agents/*.log
 ai_agents/*.pcm
 ai_agents/.ten-security/
+ai_agents/.ten-security-replay/
 /.trae

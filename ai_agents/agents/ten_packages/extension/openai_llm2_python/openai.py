@@ -1,3 +1,4 @@
+from __future__ import annotations
 #
 #
 # Agora Real Time Engagement
@@ -12,7 +13,7 @@ from enum import Enum
 import json
 import random
 import uuid
-from typing import AsyncGenerator, List
+from typing import AsyncGenerator, List, TYPE_CHECKING
 from pydantic import BaseModel
 import requests
 from openai import AsyncOpenAI, AsyncStream
@@ -33,7 +34,8 @@ from ten_ai_base.struct import (
     TextContent,
 )
 from ten_ai_base.types import LLMToolMetadata
-from ten_runtime.async_ten_env import AsyncTenEnv
+if TYPE_CHECKING:
+    from ten_runtime.async_ten_env import AsyncTenEnv
 from .security import SecurityGuard, BLOCK_MESSAGE, PAUSE_MESSAGE
 
 
@@ -105,11 +107,12 @@ class ThinkParser:
 class OpenAIChatGPT:
     client = None
 
-    def __init__(self, ten_env: AsyncTenEnv, config: OpenAILLM2Config):
+    def __init__(self, ten_env: AsyncTenEnv, config: OpenAILLM2Config,
+                 security_guard: SecurityGuard | None = None):
         self.config = config
         self.ten_env = ten_env
         ten_env.log_info("OpenAIChatGPT initialized (credentials omitted)")
-        self.guard = SecurityGuard() if config.security_enabled else None
+        self.guard = (security_guard if security_guard is not None else SecurityGuard()) if config.security_enabled else None
         if self.guard is not None:
             self.guard.event("worker", "ready", "guard_initialized")
         self.client = AsyncOpenAI(
