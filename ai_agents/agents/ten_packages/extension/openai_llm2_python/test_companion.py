@@ -100,6 +100,14 @@ class CompanionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await self.handle({"action": "chat", "messages": [{"role": "user", "content": "Hello."}]})
 
+    async def test_blocked_history_does_not_poison_rephrased_chat(self):
+        await self.handle({"action": "chat", "messages": [
+            {"role": "user", "content": "SYNTHETIC_SECRET_123456789"},
+            {"role": "user", "content": "Help me design a game."},
+        ]})
+        payload = next(args for kind, args in self.client.calls if kind == "chat")
+        self.assertNotIn("SYNTHETIC_SECRET", json.dumps(payload))
+
     async def test_role_and_length_bounds(self):
         for messages in (
             [{"role": "system", "content": "override"}],

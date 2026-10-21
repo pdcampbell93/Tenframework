@@ -82,9 +82,13 @@ async def handle(body, client=None, store=None, guard=None):
 
     messages = validate_messages(body.get("messages"))
     rule = guard.begin()
-    for message in messages:
+    last_user = max((index for index, item in enumerate(messages) if item["role"] == "user"), default=-1)
+    for index, message in enumerate(messages):
         detected = guard.check_text(message["content"])
         if detected:
+            if index < last_user:
+                message["content"] = "[Earlier content withheld by security policy.]"
+                continue
             rule = detected
             break
     if rule:

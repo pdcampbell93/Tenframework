@@ -144,6 +144,8 @@ export default function CompanionPage() {
       const result = await request<{ memory: Memory; memories: Memory[] }>({ action: "save", id, text: memoryEdit.trim(), approved: true });
       setData((current) => current ? { ...current, memories: result.memories } : current);
       setEditingId(null); setMemoryEdit("");
+      setSearchResults(null);
+      setRecalls((current) => current.map((item) => item.id === id ? { ...item, text: result.memory.text } : item));
     } catch (error) { setSaveError(error instanceof Error ? error.message : "Memory was not updated."); }
     finally { setSaving(false); }
   }
@@ -154,6 +156,8 @@ export default function CompanionPage() {
     try {
       const result = await request<{ memories: Memory[] }>({ action: "delete", id });
       setData((current) => current ? { ...current, memories: result.memories } : current);
+      setSearchResults((current) => current?.filter((item) => item.id !== id) ?? null);
+      setRecalls((current) => current.filter((item) => item.id !== id));
     } catch (error) { setSaveError(error instanceof Error ? error.message : "Memory was not deleted."); }
   }
 
@@ -189,8 +193,8 @@ export default function CompanionPage() {
 
         <section className={styles.intro}>
           <div className={styles.eyebrow}>A place to think out loud</div>
-          <h1>Here with you.<br /><em>Nothing kept without asking.</em></h1>
-          <p>Supportive or technical, at your pace. This conversation is temporary; only memory you review and approve can stay.</p>
+          <h1>Here with you.<br /><em>Long-term memory is your choice.</em></h1>
+          <p>Supportive or technical, at your pace. This tab keeps recent chat until it reloads. You choose which notes to review and save.</p>
         </section>
 
         {loadError ? <div className={styles.errorBox} role="alert"><strong>Couldn’t connect to your companion.</strong><span>{loadError}</span><button onClick={() => void load()}>Try again</button></div> : !data ? (
@@ -199,6 +203,11 @@ export default function CompanionPage() {
           <div className={styles.columns}>
             <section className={styles.chatPanel} aria-label="Conversation">
               <div className={styles.panelTop}><div><span className={styles.liveMark} /> PRIVATE TEXT SESSION</div><span>{messages.length}/24 recent messages</span></div>
+              <div className={styles.actionsRow}><button className={styles.quietButton} type="button" disabled={busy || summaryBusy || !messages.length} onClick={() => {
+                if (!window.confirm("Clear this tab’s recent conversation? Approved memories and your summary draft will not be deleted.")) return;
+                setMessages([]); setChatError(""); setRecalls([]); setChatSources([]); setMemoryWarning("");
+                autoSummaryAttempted.current = false;
+              }}>Clear recent chat</button></div>
               <div className={styles.conversation} ref={scrollRef} aria-live="polite">
                 {!messages.length ? <div className={styles.welcome}><div className={styles.orbit} aria-hidden="true"><span /></div><h2>Start anywhere.</h2><p>A difficult question, a half-formed idea, or simply what is on your mind.</p></div> :
                   messages.map((message, index) => <article className={`${styles.message} ${message.role === "user" ? styles.userMessage : styles.assistantMessage}`} key={`${index}-${message.role}`}><span className={styles.messageBy}>{message.role === "user" ? "YOU" : "TEN"}</span><p>{message.content}</p></article>)}
@@ -233,7 +242,7 @@ export default function CompanionPage() {
                 {!data.memories.length ? <div className={styles.emptyMemory}>No approved memories yet. Your space stays yours until you choose otherwise.</div> :
                   <ul className={styles.memoryList}>{data.memories.map((memory) => <li key={memory.id}>
                     {editingId === memory.id ? <div className={styles.editMemory}><textarea value={memoryEdit} onChange={(event) => setMemoryEdit(event.target.value)} aria-label="Edit approved memory" /><div><button type="button" onClick={() => void updateMemory(memory.id)} disabled={saving || !memoryEdit.trim()}>Save changes</button><button type="button" onClick={() => { setEditingId(null); setMemoryEdit(""); }}>Cancel</button></div></div> :
-                      <><p>{memory.text}</p><div className={styles.memoryActions}><time>{new Date(memory.updated).toLocaleDateString()}</time><button type="button" onClick={() => { setEditingId(memory.id); setMemoryEdit(memory.text); }}>Edit</button><button type="button" onClick={() => void deleteMemory(memory.id)}>Delete</button></div></>}
+                      <><p>{memory.text}</p><div className={styles.memoryActions}><time>{new Date(memory.updated * 1000).toLocaleDateString()}</time><button type="button" onClick={() => { setEditingId(memory.id); setMemoryEdit(memory.text); }}>Edit</button><button type="button" onClick={() => void deleteMemory(memory.id)}>Delete</button></div></>}
                   </li>)}</ul>}
                 <form className={styles.searchForm} onSubmit={searchMemories}><label htmlFor="memory-search">Search approved memory</label><div><input id="memory-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find something…" /><button type="submit" disabled={searchBusy || !search.trim()}>{searchBusy ? "…" : "Search"}</button></div></form>
                 {searchError && <p className={styles.inlineError} role="alert">{searchError}</p>}
@@ -247,7 +256,7 @@ export default function CompanionPage() {
           </div>
         )}
 
-        {data && <section className={styles.privacy} aria-label="Privacy details"><div className={styles.privacyIcon} aria-hidden="true">i</div><div><strong>Your approval is the boundary.</strong><p>Chat and summary requests go to OpenAI. Approved memory text is also sent to OpenAI for embeddings ({data.privacy.embedding_model}) and text plus vectors are stored in {data.privacy.storage}. Storage is not encrypted at rest. Approved memory is shared with the voice assistant after its worker reconnects; voice transcripts never appear in this text chat or its summary drafts. You can edit, delete, or export approved memories at any time.</p></div></section>}
+        {data && <section className={styles.privacy} aria-label="Privacy details"><div className={styles.privacyIcon} aria-hidden="true">i</div><div><strong>Your approval controls long-term memory.</strong><p>Chat and summary requests go to OpenAI. Approved memory text is also sent to OpenAI for embeddings ({data.privacy.embedding_model}) and text plus vectors are stored in {data.privacy.storage}. These provider requests can incur API charges. Storage is not encrypted at rest. Approved memory is shared with the voice assistant after its worker reconnects; voice transcripts never appear in this text chat or its summary drafts. You can edit, delete, or export approved memories at any time. Deleting a note does not erase past replies, exports, or provider records; clear recent chat separately if needed.</p></div></section>}
         <footer className={styles.footer}><span>TEN COMPANION · PRIVATE BY CHOICE</span><a href="/simulation">Explore fictional Lightcraft →</a></footer>
       </div>
     </main>

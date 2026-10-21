@@ -8,7 +8,9 @@ export function estimateGaze(landmarks: { x: number; y: number }[]): GazePoint |
     const top = landmarks[upper], bottom = landmarks[lower];
     const width = Math.abs(b.x - a.x), height = Math.abs(bottom.y - top.y);
     if (width < .005 || height < .003) return null;
-    return { x: (pupil.x - Math.min(a.x, b.x)) / width, y: (pupil.y - top.y) / height };
+    const x = (pupil.x - Math.min(a.x, b.x)) / width, y = (pupil.y - top.y) / height;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < -.25 || x > 1.25 || y < -.25 || y > 1.25) return null;
+    return { x, y };
   };
   const left = eye(33, 133, 468, 159, 145);
   const right = eye(362, 263, 473, 386, 374);

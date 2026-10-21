@@ -37,6 +37,7 @@ export default function CameraGaze({ onAutoPause }: Props) {
     if (video) { video.pause(); video.srcObject = null; }
     setState("off"); setFaceSeen(false); setDirection("uncertain"); setCalibrated(false);
     center.current = null; latestPoint.current = null; pauseCalled.current = false;
+    lastFaceAt.current = 0;
   }, []);
 
   const enable = useCallback(async () => {
@@ -109,6 +110,7 @@ export default function CameraGaze({ onAutoPause }: Props) {
             onAutoPauseRef.current();
           }
         } catch {
+          if (autoPause) onAutoPauseRef.current();
           streamRef.current?.getTracks().forEach((track) => track.stop());
           streamRef.current = null;
           detectorRef.current?.close(); detectorRef.current = null;
