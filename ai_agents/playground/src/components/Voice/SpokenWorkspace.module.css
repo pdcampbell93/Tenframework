@@ -1,0 +1,101 @@
+.workspace {
+  --ink: #17333a;
+  --muted: #607579;
+  --paper: #f3f5ef;
+  --line: #d8e1da;
+  --teal: #176b69;
+  --coral: #c45e47;
+  min-height: 100dvh;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: "DM Sans", system-ui, sans-serif;
+}
+
+.bar {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 12px clamp(14px, 3vw, 32px);
+  border-bottom: 1px solid var(--line);
+  background: #f8f9f4;
+}
+
+.brand { display: flex; align-items: center; gap: 10px; min-width: max-content; }
+.mark {
+  display: grid; width: 34px; height: 34px; place-items: center;
+  border-radius: 11px 11px 11px 3px; background: var(--teal); color: #f8f9f4;
+  font: 700 14px Georgia, serif; letter-spacing: -.08em;
+}
+.brandText { font: 700 11px/1.15 "DM Sans", sans-serif; letter-spacing: .13em; }
+.brandText small { display: block; padding-top: 3px; color: var(--muted); font-size: 9px; font-weight: 500; letter-spacing: .08em; }
+.nav { display: flex; justify-content: center; gap: 5px; }
+.nav button, .commandToggle, .backButton {
+  min-height: 44px; border: 1px solid transparent; border-radius: 12px;
+  padding: 0 15px; color: var(--ink); background: transparent; cursor: pointer;
+  font: 600 13px "DM Sans", sans-serif; transition: background .18s ease, color .18s ease, transform .18s ease;
+}
+.nav button:hover, .commandToggle:hover, .backButton:hover { background: #e7eee8; }
+.nav button[aria-current="page"] { color: #fff; background: var(--teal); }
+.nav button:focus-visible, .commandToggle:focus-visible, .backButton:focus-visible, .confirmButton:focus-visible, .cancelButton:focus-visible {
+  outline: 3px solid #d18a60; outline-offset: 2px;
+}
+.tools { display: flex; align-items: center; gap: 10px; }
+.state {
+  display: flex; align-items: center; gap: 7px; color: var(--muted);
+  font-size: 11px; white-space: nowrap;
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #9aa8a3; }
+.dotLive { background: #458a70; box-shadow: 0 0 0 3px #458a701e; }
+.dotArmed { background: #d18a60; }
+.commandToggle { min-width: 106px; border-color: #cad6ce; background: #fff; }
+.commandToggle[aria-pressed="true"] { color: #fff; border-color: var(--teal); background: var(--teal); }
+.backButton { padding-inline: 12px; border: 1px solid var(--line); background: #fff; }
+
+.notice {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px;
+  padding: 11px clamp(14px, 3vw, 32px); color: #39585a; background: #e6eeea;
+  font-size: 12px; line-height: 1.5;
+}
+.notice strong { color: var(--ink); }
+.examples { grid-column: 1 / -1; margin-top: -3px; color: #647b7a; font-size: 11px; }
+.examples span { color: var(--teal); font-weight: 700; }
+.main { min-height: calc(100dvh - 120px); }
+.panel { min-height: inherit; }
+.panel[hidden] { display: none !important; }
+.help summary { min-height: 44px; padding-top: 12px; cursor: pointer; }
+.confirm::backdrop { background: #17333a88; }
+.tenPanel { min-height: calc(100dvh - 120px); }
+
+.confirmBackdrop {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+  padding: 20px; background: #17333a88;
+}
+.confirm {
+  width: min(100%, 420px); padding: 24px; border: 1px solid var(--line);
+  border-radius: 20px; background: #f8f9f4; box-shadow: 0 18px 60px #143a3930;
+}
+.confirm h2 { margin: 0 0 8px; font: 600 22px Georgia, serif; }
+.confirm p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.confirmActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
+.confirmButton, .cancelButton { min-height: 44px; padding: 0 16px; border-radius: 11px; cursor: pointer; font-weight: 700; }
+.confirmButton { border: 1px solid var(--coral); color: white; background: var(--coral); }
+.cancelButton { border: 1px solid var(--line); color: var(--ink); background: white; }
+
+@media (max-width: 760px) {
+  .bar { grid-template-columns: 1fr auto; gap: 10px; padding: 10px 12px; }
+  .brandText small { display: none; }
+  .nav { grid-column: 1 / -1; grid-row: 2; justify-content: stretch; order: 2; gap: 3px; }
+  .nav button { flex: 1; padding: 0 5px; font-size: 12px; }
+  .tools { grid-column: 2; grid-row: 1; gap: 6px; }
+  .state { font-size: 10px; }
+  .backButton { display: none; }
+  .notice { grid-template-columns: 1fr; }
+  .examples { grid-column: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav button, .commandToggle, .backButton { transition: none; }
+}

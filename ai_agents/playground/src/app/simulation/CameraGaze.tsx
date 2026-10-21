@@ -128,7 +128,11 @@ export default function CameraGaze({ onAutoPause }: Props) {
   useEffect(() => {
     const onVisibility = () => { if (document.visibilityState !== "visible") stop(); };
     document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
+    window.addEventListener("ten:lightcraft-hidden", stop);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("ten:lightcraft-hidden", stop);
+    };
   }, [stop]);
   useEffect(() => () => {
     generation.current += 1;

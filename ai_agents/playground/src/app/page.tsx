@@ -7,6 +7,7 @@ import React from "react";
 import { EMobileActiveTab, useAppSelector, useIsCompactLayout } from "@/common";
 import Avatar from "@/components/Agent/AvatarTrulience";
 import AuthInitializer from "@/components/authInitializer";
+import SpokenWorkspace from "@/components/Voice/SpokenWorkspace";
 import Action from "@/components/Layout/Action";
 import Header from "@/components/Layout/Header";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,7 @@ export default function Home() {
   };
 
   return (
+    <SpokenWorkspace>
     <AuthInitializer>
       <div className="relative mx-auto flex min-h-screen flex-1 flex-col md:h-screen">
         <Header className="h-[60px]" />
@@ -107,5 +109,6 @@ export default function Home() {
         </div>
       </div>
     </AuthInitializer>
+    </SpokenWorkspace>
   );
 }

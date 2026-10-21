@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { isFieldCommand } from "@/lib/spokenCommands";
 import LightField, { type FieldMode, type FormKind, type Manifestation } from "./LightField";
 import CameraGaze from "./CameraGaze";
 import styles from "./simulation.module.css";
@@ -18,11 +19,12 @@ export default function SimulationPage() {
   const [mode, setMode] = useState<FieldMode>("resonance");
   const [form, setForm] = useState<FormKind>("orb");
   const [paused, setPaused] = useState(false);
+  const [spokenFeedback, setSpokenFeedback] = useState("");
   const [systemOpen, setSystemOpen] = useState(false);
   const [objects, setObjects] = useState<Manifestation[]>([]);
   const [unsupported, setUnsupported] = useState(false);
 
-  const manifest = useCallback((x?: number, y?: number) => {
+  const manifest = useCallback((x?: number, y?: number, requestedForm?: FormKind) => {
     if (paused || objects.length >= MAX_OBJECTS) return;
     const index = objects.length;
     const fallbackX = .2 + (((index * 37 + 23) % 61) / 100);
@@ -33,7 +35,7 @@ export default function SimulationPage() {
         id: Date.now() + current.length,
         x: x ?? fallbackX,
         y: y ?? fallbackY,
-        form,
+        form: requestedForm ?? form,
         born: performance.now(),
         seed: (current.length + 1) * 1.71,
       }];
@@ -54,6 +56,35 @@ export default function SimulationPage() {
     setObjects([]);
   };
 
+  useEffect(() => {
+    const receive = (event: Event) => {
+      const command: unknown = (event as CustomEvent).detail;
+      if (!isFieldCommand(command)) return;
+      switch (command.type) {
+        case "pause": setPaused(true); setSpokenFeedback("Effects paused."); break;
+        case "resume": setPaused(false); setSpokenFeedback("Effects resumed."); break;
+        case "manifest":
+          if (paused) { setSpokenFeedback("Effects are paused. Say “TEN, resume” before manifesting."); break; }
+          if (objects.length >= MAX_OBJECTS) { setSpokenFeedback("The field is full. Clear forms before manifesting more."); break; }
+          setForm(command.form);
+          manifest(undefined, undefined, command.form);
+          setSpokenFeedback(`Placed ${command.form}.`);
+          break;
+        case "light": setLightAngle(command.value); setSpokenFeedback(`Light direction set to ${command.value}.`); break;
+        case "shadow": setShadowBend(command.value); setSpokenFeedback(`Shadow bend set to ${command.value}.`); break;
+        case "clear": setObjects([]); setSpokenFeedback("Field forms cleared."); break;
+        case "reset": reset(); setSpokenFeedback("Field and controls reset."); break;
+      }
+    };
+    const hide = () => setPaused(true);
+    window.addEventListener("ten:lightcraft-command", receive);
+    window.addEventListener("ten:lightcraft-hidden", hide);
+    return () => {
+      window.removeEventListener("ten:lightcraft-command", receive);
+      window.removeEventListener("ten:lightcraft-hidden", hide);
+    };
+  }, [manifest]);
+
   const profile = useMemo(() => {
     const average = Math.round((focus + calm) / 2);
     if (average >= 72) return "Soft focus";
@@ -70,6 +101,7 @@ export default function SimulationPage() {
 
   return (
     <main className={styles.page}>
+      {spokenFeedback && <p role="status" className={styles.assistNote}>{spokenFeedback}</p>}
       <div className={styles.shell}>
         <header className={styles.topbar}>
           <div className={styles.brand}>
