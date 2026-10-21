@@ -58,7 +58,7 @@ export default function CameraGaze({ onAutoPause }: Props) {
       detectorRef.current = detector;
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+        video: { facingMode: "user", width: { ideal: 640, max: 640 }, height: { ideal: 480, max: 480 } },
       });
       if (generation.current !== token) { stream.getTracks().forEach((track) => track.stop()); detector.close(); return; }
       streamRef.current = stream;

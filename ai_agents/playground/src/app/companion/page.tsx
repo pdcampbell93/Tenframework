@@ -194,7 +194,7 @@ export default function CompanionPage() {
         </section>
 
         {loadError ? <div className={styles.errorBox} role="alert"><strong>Couldn’t connect to your companion.</strong><span>{loadError}</span><button onClick={() => void load()}>Try again</button></div> : !data ? (
-          <section className={styles.loading} aria-label="Loading companion"><div className={styles.skeletonLine} /><div className={styles.skeletonCard} /><div className={styles.skeletonLine short} /></section>
+          <section className={styles.loading} aria-label="Loading companion"><div className={styles.skeletonLine} /><div className={styles.skeletonCard} /><div className={styles.skeletonLine} /></section>
         ) : (
           <div className={styles.columns}>
             <section className={styles.chatPanel} aria-label="Conversation">
