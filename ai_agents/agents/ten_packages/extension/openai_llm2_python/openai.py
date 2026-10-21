@@ -376,6 +376,10 @@ class OpenAIChatGPT:
             if not self.config.is_black_list_params(key):
                 req[key] = value
 
+        # Do not create stored completions, even if caller parameters request
+        # them. This does not disable provider abuse-monitoring retention.
+        req["store"] = False
+
         self.ten_env.log_info("Requesting chat completion (content omitted)")
 
         response = None
@@ -528,6 +532,11 @@ class OpenAIChatGPT:
                 created=last_chat_completion.created,
             )
         except Exception as e:
+            status = getattr(e, "status_code", None)
+            safe_status = status if type(status) is int and 100 <= status <= 599 else "unknown"
+            self.ten_env.log_error(
+                f"Chat completion failed: category={type(e).__name__} status={safe_status}"
+            )
             raise RuntimeError("Chat completion failed; details omitted") from None
         finally:
             if response is not None:

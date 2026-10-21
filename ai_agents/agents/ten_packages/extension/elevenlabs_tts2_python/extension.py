@@ -6,7 +6,6 @@
 import asyncio
 from datetime import datetime
 import os
-import traceback
 from typing import Tuple
 
 from ten_ai_base.helper import PCMWriter
@@ -60,7 +59,7 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
                     raise ValueError("key is required")
                 self.config.update_params()
                 self.ten_env.log_info(
-                    f"config: {self.config.to_str(sensitive_handling=True)}",
+                    "TTS configuration loaded (values omitted)",
                     category=LOG_CATEGORY_KEY_POINT,
                 )
 
@@ -95,7 +94,7 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
                 # If we've received text_input_end, send tts_audio_end and finish request
                 if has_received_text_input_end:
                     self.ten_env.log_info(
-                        f"Error occurred after text_input_end for request {target_request_id}, sending tts_audio_end with ERROR reason",
+                        "Error after text_input_end; ending TTS with ERROR reason",
                         category=LOG_CATEGORY_KEY_POINT,
                     )
                     # Send tts_audio_end with ERROR reason
@@ -119,12 +118,12 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
                     )
                 else:
                     self.ten_env.log_debug(
-                        f"Error occurred before text_input_end for request {target_request_id}, only sending error (request may continue)"
+                        "Error before text_input_end; request may continue"
                     )
 
                 if error.code == ModuleErrorCode.FATAL_ERROR:
                     self.ten_env.log_error(
-                        f"Fatal error occurred: {error.message}"
+                        "Fatal ElevenLabs provider error (details omitted)"
                     )
                     await self.client.close()
                     await self.on_stop(self.ten_env)
@@ -136,14 +135,14 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
             self.msg_polling_task = asyncio.create_task(self._loop())
 
         except Exception as e:
-            ten_env.log_error(f"on_init failed: {traceback.format_exc()}")
+            ten_env.log_error(f"on_init failed: {type(e).__name__}")
             ten_env.log_debug(
                 "Initialization failed but event set to prevent blocking"
             )
             await self.send_tts_error(
                 request_id="",  # No request_id available during on_init
                 error=ModuleError(
-                    message=str(e),
+                    message=f"TTS initialization failed: {type(e).__name__}",
                     module=ModuleType.TTS,
                     code=ModuleErrorCode.FATAL_ERROR,
                     vendor_info={},
@@ -163,11 +162,11 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
             try:
                 await recorder.flush()
                 ten_env.log_debug(
-                    f"Flushed PCMWriter for request_id: {request_id}"
+                    "Flushed PCMWriter"
                 )
             except Exception as e:
                 ten_env.log_error(
-                    f"Error flushing PCMWriter for request_id {request_id}: {e}"
+                    f"Error flushing PCMWriter: {type(e).__name__}"
                 )
 
         await super().on_stop(ten_env)
@@ -206,7 +205,7 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
                         ttfb_ms=ttfb_ms,
                         extra_metadata=extra_metadata,
                     )
-                self.ten_env.log_debug(f"Received isFinal: {isFinal}")
+                self.ten_env.log_debug(f"Received isFinal: {bool(isFinal)}")
                 self.get_audio_count += 1
 
                 if audio_data is not None:
@@ -229,7 +228,7 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
                             audio_data
                         )
                         self.ten_env.log_debug(
-                            f"Wrote {len(audio_data)} bytes to PCMWriter for request_id: {self.current_request_id}"
+                            f"Wrote {len(audio_data)} bytes to PCMWriter"
                         )
 
                     cur_duration = self.calculate_audio_duration(
@@ -239,7 +238,7 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
                         self.synthesize_audio_sample_width(),
                     )
                     self.ten_env.log_debug(
-                        f"receive_audio:  duration: {cur_duration} of request id: {self.current_request_id}",
+                        f"receive_audio: duration={cur_duration}",
                         category=LOG_CATEGORY_VENDOR,
                     )
                     if self.request_total_audio_duration is None:
@@ -261,9 +260,9 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
                     # Don't reset current_request_id here, let the next request set it
                     # Reset only timing-related variables
 
-            except Exception:
+            except Exception as e:
                 self.ten_env.log_error(
-                    f"Error in _loop: {traceback.format_exc()}"
+                    f"Error in TTS audio loop: {type(e).__name__}"
                 )
 
     async def request_tts(self, t: TTSTextInput) -> None:
@@ -273,7 +272,7 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
         """
         try:
             self.ten_env.log_info(
-                f"Requesting TTS for text: {t.text}, text_input_end: {t.text_input_end} request ID: {t.request_id}"
+                f"Requesting TTS: chars={len(t.text)}, text_input_end={bool(t.text_input_end)}"
             )
 
             # check if request_id has already been completed
@@ -281,19 +280,17 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
                 self.completed_request_ids
                 and t.request_id in self.completed_request_ids
             ):
-                error_msg = (
-                    f"Request ID {t.request_id} has already been completed "
-                )
+                error_msg = "TTS request has already been completed"
                 self.ten_env.log_warn(error_msg)
                 self.ten_env.log_debug(
-                    f"skip_tts_text_input:  {t.text} of request id: {t.request_id}",
+                    "skip_tts_text_input: request already completed (content omitted)",
                     category=LOG_CATEGORY_KEY_POINT,
                 )
                 return
             if t.text_input_end == True:
                 self.completed_request_ids.add(t.request_id)
                 self.ten_env.log_info(
-                    f"add completed request_id to: {t.request_id}"
+                    "Marked TTS request completed"
                 )
 
             # new request id
@@ -302,7 +299,7 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
                 or t.request_id != self.current_request_id
             ):
                 self.ten_env.log_debug(
-                    f"New TTS request with ID: {t.request_id}"
+                    "New TTS request"
                 )
                 self.current_request_id = t.request_id
                 if (
@@ -333,11 +330,11 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
                             await self.recorder_map[old_rid].flush()
                             del self.recorder_map[old_rid]
                             self.ten_env.log_debug(
-                                f"Cleaned up old PCMWriter for request_id: {old_rid}"
+                                "Cleaned up old PCMWriter"
                             )
                         except Exception as e:
                             self.ten_env.log_error(
-                                f"Error cleaning up PCMWriter for request_id {old_rid}: {e}"
+                                f"Error cleaning up PCMWriter: {type(e).__name__}"
                             )
 
                     # create new PCMWriter
@@ -350,7 +347,7 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
                             dump_file_path
                         )
                         self.ten_env.log_info(
-                            f"Created PCMWriter for request_id: {t.request_id}, file: {dump_file_path}"
+                            "Created PCMWriter (path omitted)"
                         )
 
             if self.client is None:
@@ -373,7 +370,7 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
 
         except ModuleVendorException as e:
             self.ten_env.log_error(
-                f"ModuleVendorException in request_tts: {traceback.format_exc()}. text: {t.text}"
+                "ElevenLabs provider error in request_tts (details omitted)"
             )
             # Check if we've received text_input_end (state is FINALIZING)
             has_received_text_input_end = False
@@ -385,17 +382,17 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
             await self.send_tts_error(
                 request_id=request_id,
                 error=ModuleError(
-                    message=str(e),
+                    message="ElevenLabs provider error in request_tts",
                     module=ModuleType.TTS,
                     code=ModuleErrorCode.NON_FATAL_ERROR,
-                    vendor_info=e.error,
+                    vendor_info={"vendor": "elevenlabs"},
                 ),
             )
 
             # If we've received text_input_end, send tts_audio_end and finish request
             if has_received_text_input_end:
                 self.ten_env.log_info(
-                    f"Error occurred after text_input_end for request {request_id}, sending tts_audio_end with ERROR reason",
+                    "Error after text_input_end; ending TTS with ERROR reason",
                     category=LOG_CATEGORY_KEY_POINT,
                 )
                 request_event_interval = 0
@@ -416,7 +413,7 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
                 )
         except Exception as e:
             self.ten_env.log_error(
-                f"Error in request_tts: {traceback.format_exc()}. text: {t.text}"
+                f"Error in request_tts: {type(e).__name__}"
             )
             # Check if we've received text_input_end (state is FINALIZING)
             has_received_text_input_end = False
@@ -428,7 +425,7 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
             await self.send_tts_error(
                 request_id=request_id,
                 error=ModuleError(
-                    message=str(e),
+                    message=f"TTS request failed: {type(e).__name__}",
                     module=ModuleType.TTS,
                     code=ModuleErrorCode.NON_FATAL_ERROR,
                     vendor_info={"vendor": "elevenlabs"},
@@ -438,7 +435,7 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
             # If we've received text_input_end, send tts_audio_end and finish request
             if has_received_text_input_end:
                 self.ten_env.log_info(
-                    f"Error occurred after text_input_end for request {request_id}, sending tts_audio_end with ERROR reason",
+                    "Error after text_input_end; ending TTS with ERROR reason",
                     category=LOG_CATEGORY_KEY_POINT,
                 )
                 request_event_interval = 0
@@ -479,11 +476,11 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
             self.client.cancel()
             await self.handle_completed_request(TTSAudioEndReason.INTERRUPTED)
         except Exception as e:
-            self.ten_env.log_error(f"Error in handle_flush: {e}")
+            self.ten_env.log_error(f"Error in handle_flush: {type(e).__name__}")
             await self.send_tts_error(
                 request_id=self.current_request_id,
                 error=ModuleError(
-                    message=str(e),
+                    message=f"TTS flush failed: {type(e).__name__}",
                     module=ModuleType.TTS,
                     code=ModuleErrorCode.NON_FATAL_ERROR,
                     vendor_info={"vendor": "elevenlabs"},
@@ -494,7 +491,7 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
         # update request_id
         self.completed_request_ids.add(self.current_request_id)
         self.ten_env.log_info(
-            f"add completed request_id to: {self.current_request_id}"
+            "Marked TTS request completed"
         )
 
         # Flush PCMWriter for the completed request
@@ -506,11 +503,11 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
             try:
                 await self.recorder_map[self.current_request_id].flush()
                 self.ten_env.log_debug(
-                    f"Flushed PCMWriter for completed request_id: {self.current_request_id}"
+                    "Flushed PCMWriter for completed request"
                 )
             except Exception as e:
                 self.ten_env.log_error(
-                    f"Error flushing PCMWriter for completed request_id {self.current_request_id}: {e}"
+                    f"Error flushing PCMWriter for completed request: {type(e).__name__}"
                 )
 
         # send audio_end
@@ -532,7 +529,7 @@ class ElevenLabsTTS2Extension(AsyncTTS2BaseExtension):
             reason=reason,
         )
         self.ten_env.log_debug(
-            f"Sent tts_audio_end with {reason.name} reason for request_id: {self.current_request_id}"
+            f"Sent tts_audio_end: reason={reason.name}"
         )
         self.request_start_ts = None
         self.request_total_audio_duration = None

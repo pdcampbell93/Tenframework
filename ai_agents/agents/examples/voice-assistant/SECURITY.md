@@ -1,3 +1,10 @@
+# Diagnostic privacy and retention
+
+See [LOGGING_PRIVACY.md](LOGGING_PRIVACY.md) for safe logging defaults, local file
+retention controls, synthetic regression checks, and the separate provider-side
+retention settings. Metadata-only security auditing is not a zero-retention
+guarantee for the voice assistant or its providers.
+
 # TEN local security layer
 
 This is an initial defense-in-depth layer for the `voice_assistant` graph's
