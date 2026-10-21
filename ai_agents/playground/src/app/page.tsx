@@ -2,6 +2,7 @@
 
 import { IMicrophoneAudioTrack } from "agora-rtc-sdk-ng";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import React from "react";
 import { EMobileActiveTab, useAppSelector, useIsCompactLayout } from "@/common";
 import Avatar from "@/components/Agent/AvatarTrulience";
@@ -52,6 +53,11 @@ export default function Home() {
     <AuthInitializer>
       <div className="relative mx-auto flex min-h-screen flex-1 flex-col md:h-screen">
         <Header className="h-[60px]" />
+        <div className="px-4 py-2 text-right text-sm">
+          <Link href="/security" target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline underline-offset-4">
+            Security controls &amp; tests (new tab)
+          </Link>
+        </div>
         <Action />
         <div
           className={cn(

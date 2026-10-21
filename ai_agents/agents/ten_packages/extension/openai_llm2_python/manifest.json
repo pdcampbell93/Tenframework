@@ -45,6 +45,9 @@
         },
         "prompt": {
           "type": "string"
+        },
+        "security_enabled": {
+          "type": "bool"
         }
       }
     }
