@@ -112,7 +112,7 @@ class ReconnectManager:
         except Exception as e:
             if self.logger:
                 self.logger.log_error(
-                    f"Reconnection attempt #{self.attempts} failed: {e}"
+                    f"Reconnection attempt #{self.attempts} failed: {type(e).__name__}"
                 )
 
             # If this was the last attempt, send error
@@ -122,7 +122,7 @@ class ReconnectManager:
                         ModuleError(
                             module=MODULE_NAME_ASR,
                             code=ModuleErrorCode.FATAL_ERROR.value,
-                            message=f"All reconnection attempts failed. Last error: {str(e)}",
+                            message=f"All reconnection attempts failed: {type(e).__name__}",
                         )
                     )
 

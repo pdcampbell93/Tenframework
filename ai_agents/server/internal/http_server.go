@@ -852,23 +852,31 @@ func (s *HttpServer) processProperty(req *StartReq, tenappDir string) (propertyJ
 	slog.Info("About to write file", "requestId", req.RequestId, "propertyJsonFile", propertyJsonFile, "fileSize", len(modifiedPropertyJson), logTag)
 
 	// Try to create the file first to see if there are any permission issues
-	file, createErr := os.Create(propertyJsonFile)
+file, createErr := createPrivateProperty(propertyJsonFile)
 	if createErr != nil {
 		slog.Error("Failed to create file", "err", createErr, "propertyJsonFile", propertyJsonFile, "requestId", req.RequestId, logTag)
+err = createErr
 		return
 	}
 	defer file.Close()
+defer func() {
+if err != nil {
+os.Remove(propertyJsonFile)
+}
+}()
 
 	// Write content to file
 	_, writeErr := file.Write([]byte(modifiedPropertyJson))
 	if writeErr != nil {
 		slog.Error("Failed to write content to file", "err", writeErr, "propertyJsonFile", propertyJsonFile, "requestId", req.RequestId, logTag)
+err = writeErr
 		return
 	}
 
 	// Sync to ensure data is written to disk
 	if syncErr := file.Sync(); syncErr != nil {
 		slog.Error("Failed to sync file", "err", syncErr, "propertyJsonFile", propertyJsonFile, "requestId", req.RequestId, logTag)
+err = syncErr
 		return
 	}
 

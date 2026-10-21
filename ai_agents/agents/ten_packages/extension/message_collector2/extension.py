@@ -60,7 +60,7 @@ class MessageCollector2Extension(AsyncExtension):
                     await self._queue_message(chunk)
 
             except Exception as e:
-                ten_env.log_warn(f"on_data new_data error: {e}")
+                ten_env.log_warn(f"on_data new_data error: {type(e).__name__}")
         elif name == DATA_IN_FLUSH:
             ten_env.log_info("Received flush command")
             # Clear the queue
@@ -68,7 +68,7 @@ class MessageCollector2Extension(AsyncExtension):
                 await self.queue.get()
                 self.queue.task_done()
         else:
-            ten_env.log_warn(f"Unknown data name: {name}")
+            ten_env.log_warn("Unknown data name (value omitted)")
 
     async def _queue_message(self, data: str):
         await self.queue.put(data)

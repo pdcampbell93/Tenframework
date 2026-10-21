@@ -177,7 +177,7 @@ class MainControlExtension(AsyncExtension):
                 },
             )
         self.ten_env.log_info(
-            f"[MainControlExtension] Sent transcript: {role}, final={final}, text={text}"
+            f"[MainControlExtension] Sent transcript: final={final}, chars={len(text)}"
         )
 
     async def _send_to_tts(self, text: str, is_final: bool):
@@ -197,7 +197,7 @@ class MainControlExtension(AsyncExtension):
             },
         )
         self.ten_env.log_info(
-            f"[MainControlExtension] Sent to TTS: is_final={is_final}, text={text}"
+            f"[MainControlExtension] Sent to TTS: is_final={is_final}, chars={len(text)}"
         )
 
     async def _interrupt(self):

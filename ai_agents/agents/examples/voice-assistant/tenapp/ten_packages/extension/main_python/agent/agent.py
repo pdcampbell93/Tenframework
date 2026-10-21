@@ -75,7 +75,7 @@ class Agent:
                         raise
                     except Exception as e:
                         self.ten_env.log_error(
-                            f"Handler error for {etype}: {e}"
+                            f"Agent event handler failed: {type(e).__name__}"
                         )
 
     # === Consumers ===
@@ -125,13 +125,13 @@ class Agent:
                     )
                 )
             else:
-                self.ten_env.log_warn(f"Unhandled cmd: {name}")
+                self.ten_env.log_warn("Unhandled command (name omitted)")
 
             await self.ten_env.return_result(
                 CmdResult.create(StatusCode.OK, cmd)
             )
         except Exception as e:
-            self.ten_env.log_error(f"on_cmd error: {e}")
+            self.ten_env.log_error(f"on_cmd error: {type(e).__name__}")
             await self.ten_env.return_result(
                 CmdResult.create(StatusCode.ERROR, cmd)
             )
@@ -149,9 +149,9 @@ class Agent:
                     )
                 )
             else:
-                self.ten_env.log_warn(f"Unhandled data: {data.get_name()}")
+                self.ten_env.log_warn("Unhandled data (name omitted)")
         except Exception as e:
-            self.ten_env.log_error(f"on_data error: {e}")
+            self.ten_env.log_error(f"on_data error: {type(e).__name__}")
 
     async def _on_llm_response(
         self, ten_env: AsyncTenEnv, delta: str, text: str, is_final: bool
