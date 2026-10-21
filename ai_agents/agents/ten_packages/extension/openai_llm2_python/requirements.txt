@@ -2,3 +2,4 @@ openai
 numpy
 requests[socks]
 pillow
+cryptography>=46.0.0

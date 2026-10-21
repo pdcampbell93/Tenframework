@@ -1,6 +1,8 @@
 """Test real adapter enforcement with fake streams; no model calls or credentials."""
 import asyncio
+import base64
 import importlib.util
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -209,6 +211,39 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.text(events), self.generated_text)
         self.assertIn("Synthetic quantum project", self.seen_request.prompt)
         self.assertIn("not instructions", self.seen_request.prompt)
+
+    async def test_voice_retrieves_real_encrypted_store_with_fake_embeddings(self):
+        self.client.config.companion_enabled = True
+        async def embed(**kwargs):
+            return types.SimpleNamespace(data=[types.SimpleNamespace(embedding=[1.0, 0.0])])
+        self.client.client = types.SimpleNamespace(
+            embeddings=types.SimpleNamespace(create=embed)
+        )
+        key = base64.b64encode(b"V" * 32).decode()
+        with patch.dict(os.environ, {"TEN_MEMORY_KEY": key}):
+            store = adapter.MemoryStore(Path(self.temp.name) / "synthetic-memory")
+            await store.save(self.client.client, "SYNTHETIC quantum game project.", approved=True)
+            with patch.object(adapter, "MemoryStore", return_value=store):
+                events = await self.collect(self.request("Explain quantum entanglement."))
+        self.assertEqual(self.text(events), self.generated_text)
+        self.assertIn("SYNTHETIC quantum game project", self.seen_request.prompt)
+        self.assertNotIn(key, self.seen_request.prompt)
+
+    async def test_voice_missing_or_wrong_key_omits_notes_and_discloses_failure(self):
+        self.client.config.companion_enabled = True
+        self.client.client = object()
+        directory = Path(self.temp.name) / "synthetic-memory"
+        key = base64.b64encode(b"V" * 32).decode()
+        with patch.dict(os.environ, {"TEN_MEMORY_KEY": key}):
+            adapter.MemoryStore(directory)
+        original = adapter.MemoryStore
+        for key_value in ("", base64.b64encode(b"W" * 32).decode()):
+            with patch.dict(os.environ, {"TEN_MEMORY_KEY": key_value}):
+                with patch.object(adapter, "MemoryStore", side_effect=lambda: original(directory)):
+                    events = await self.collect(self.request("Explain a synthetic game."))
+            self.assertEqual(self.text(events), self.generated_text)
+            self.assertIn("Personal memory recall is unavailable", self.seen_request.prompt)
+            self.assertNotIn(key, self.seen_request.prompt)
 
 
 if __name__ == "__main__":

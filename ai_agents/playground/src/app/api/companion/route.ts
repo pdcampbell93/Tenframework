@@ -18,6 +18,7 @@ async function run(body: object) {
           PATH: process.env.PATH, HOME: process.env.HOME, NODE_ENV: process.env.NODE_ENV,
           OPENAI_API_KEY: process.env.OPENAI_API_KEY,
           OPENAI_MODEL: process.env.OPENAI_MODEL,
+          TEN_MEMORY_KEY: process.env.TEN_MEMORY_KEY,
           DEEPGRAM_API_KEY: process.env.DEEPGRAM_API_KEY,
           ELEVENLABS_TTS_KEY: process.env.ELEVENLABS_TTS_KEY,
           AGORA_APP_CERTIFICATE: process.env.AGORA_APP_CERTIFICATE,

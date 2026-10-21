@@ -1,6 +1,8 @@
 """Isolated companion/memory tests with synthetic text and fake providers only."""
 import asyncio
+import base64
 import json
+import os
 import tempfile
 import types
 import unittest
@@ -31,6 +33,10 @@ class FakeClient:
 
 class CompanionTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        # Ephemeral synthetic test key; no real environment or saved notes read.
+        self.key_env = patch.dict(os.environ, {"TEN_MEMORY_KEY": base64.b64encode(b"T" * 32).decode()})
+        self.key_env.start()
+        self.addCleanup(self.key_env.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.store = MemoryStore(self.temp.name + "/memory")
         self.guard = SecurityGuard(self.temp.name + "/guard", secrets=["SYNTHETIC_SECRET_123456789"])
@@ -46,6 +52,8 @@ class CompanionTests(unittest.IsolatedAsyncioTestCase):
         response = await self.handle({})
         self.assertEqual(response["memories"], [])
         self.assertTrue(response["privacy"]["approval_required"])
+        self.assertIn("AES-256-GCM", response["privacy"]["storage"])
+        self.assertNotIn(os.environ["TEN_MEMORY_KEY"], json.dumps(response))
         self.assertEqual(len(self.client.calls), 0)
 
     async def test_save_without_approval_rejected_before_embedding(self):

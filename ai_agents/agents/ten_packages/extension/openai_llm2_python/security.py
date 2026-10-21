@@ -30,7 +30,7 @@ class SecurityGuard:
                 secrets if secrets is not None else (
                     os.environ.get(key, "") for key in (
                         "OPENAI_API_KEY", "DEEPGRAM_API_KEY",
-                        "ELEVENLABS_TTS_KEY", "AGORA_APP_CERTIFICATE",
+                        "ELEVENLABS_TTS_KEY", "AGORA_APP_CERTIFICATE", "TEN_MEMORY_KEY",
                     )
                 )
             ) if len(value) >= 12
