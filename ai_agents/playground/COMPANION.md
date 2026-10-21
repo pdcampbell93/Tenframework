@@ -129,6 +129,47 @@ and references. Reconnect an existing voice worker after installing this
 version. No voice transcript is automatically saved long-term. Retrieval errors
 are disclosed or omitted safely, never replaced with fabricated memories.
 
+## Restore a reviewed JSON export
+
+Use **Import approved-note JSON** beside **Export JSON** in `/companion`.
+This is separate from encrypted `.tenbackup` disaster recovery above. It works
+only with TEN's plaintext `{exported, memories}` approved-note export. Protect
+exports independently; importing does not encrypt or remove the original file.
+
+1. Choose a UTF-8 `.json` file up to **2 MiB**, containing at most **500 notes**
+   of **1–2000 characters** each. The entire file must validate before preview.
+   Transcripts, vectors, unknown fields, duplicate JSON keys, invalid IDs/dates,
+   credential patterns and safeguard overrides are rejected, not silently dropped.
+   Credential/transcript detection is defensive pattern screening, not a proof
+   that arbitrary prose contains no sensitive data: review every selected note.
+2. Review the plain-text preview. Nothing is preselected or saved. Existing
+   matches and repeated file text are marked and cannot be selected.
+   Matching ignores case, Unicode compatibility differences and repeated
+   whitespace; it does not merge similar meaning or changed wording.
+3. Select up to **10 notes per confirmation**, within the **500 stored-note**
+   limit. Confirm that you reviewed those notes and accept OpenAI processing and
+   possible API charges, then press **Approve & import**. Only selected text is
+   re-embedded with `text-embedding-3-small`; imported vectors are never trusted.
+   Preview uses the private TEN server, without provider calls.
+4. Review each result: saved, duplicate, failed, limit, or not attempted.
+   Each successful note is durably saved independently. The batch has a bounded
+   time budget; later notes may be left unattempted. Failures stay selected for
+   a new review/confirmation. If the connection is interrupted, keep/reopen the
+   same file and retry; current matching saved text is skipped before embedding.
+   An embedding failure/timeout can still incur provider charges. Concurrent
+   imports can both start an embedding, but the final locked insert checks text
+   again so only one copy is stored. If a note is subsequently edited/deleted,
+   its old export text is no longer a current duplicate and can be imported anew.
+
+Imported notes always get fresh local IDs/timestamps; existing notes are never
+updated, replaced or deleted. Text and new vectors use the existing encryption
+key/store. Imported notes join the normal approved-note retrieval path; this
+does not create another voice client, store transcripts, auto-save summaries or
+change private Codespaces access. Keep all forwarded ports **Private**.
+Cancel/discard clears the import preview from page state. No file is persisted
+by the importer, although the selected local file and original export remain
+on your device. Do not import secrets or private conversations.
+
 ## Optional camera and fictional effects
 
 `/simulation` adds fictional light shaping and shadow bending. Camera access
@@ -152,6 +193,7 @@ No real EEG/RF device is connected or simulated data represented as measurements
 
 Run `python3 ai_agents/agents/ten_packages/extension/openai_llm2_python/test_companion.py`
 and `python3 ai_agents/agents/ten_packages/extension/openai_llm2_python/test_memory_encryption.py`,
+plus `python3 ai_agents/agents/ten_packages/extension/openai_llm2_python/test_memory_import.py`,
 plus the existing `test_security_adapter.py` from the Codespace. They use fake providers and
 temporary databases, never private conversations, saved notes, or paid calls.
 With playground dev dependencies installed, also run

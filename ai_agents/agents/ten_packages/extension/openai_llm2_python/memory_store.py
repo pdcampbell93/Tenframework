@@ -149,6 +149,31 @@ class MemoryStore:
             if cursor.rowcount != 1:
                 raise ValueError("Memory not found.")
 
+    async def import_note(self, client, text, *, approved=False):
+        """Insert only; check duplicates again under the encrypted writer lock."""
+        if approved is not True:
+            raise ValueError("Explicit approval is required to import memory.")
+        if not isinstance(text, str) or not 1 <= len(text.strip()) <= 2000:
+            raise ValueError("Memory must contain 1–2000 characters.")
+        text = text.strip()
+        try:
+            from .memory_import import canonical_text
+        except ImportError:
+            from memory_import import canonical_text
+        vector = await self.embed(client, text)
+        now = time.time()
+        with self.connect() as db:
+            rows = db.execute("SELECT id,text,vector,model,created,updated FROM memories").fetchall()
+            for row in map(self.cipher.decrypt_row, rows):
+                if canonical_text(row[1]) == canonical_text(text):
+                    return {"status": "duplicate", "message": "Already saved; no duplicate inserted."}
+            if len(rows) >= 500:
+                return {"status": "limit", "message": "500-note storage limit reached; nothing replaced."}
+            memory_id = max((row[0] for row in rows), default=0) + 1
+            row = self.cipher.encrypt_row((memory_id, text, json.dumps(vector), EMBEDDING_MODEL, now, now))
+            db.execute("INSERT INTO memories(id,text,vector,model,created,updated) VALUES(?,?,?,?,?,?)", row)
+        return {"status": "saved", "id": memory_id, "message": "Saved as a new approved note."}
+
     async def search(self, client, query, limit=4):
         if not self.list():
             return []
