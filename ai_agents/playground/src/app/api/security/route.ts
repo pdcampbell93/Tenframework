@@ -16,8 +16,9 @@ async function run(action: string) {
   const { stdout } = await execute("python3", [script, action], {
     timeout: 15_000,
     maxBuffer: 128 * 1024,
+    encoding: "utf8",
     // The control process never needs the app's provider credentials.
-    env: { PATH: process.env.PATH, HOME: process.env.HOME },
+    env: { PATH: process.env.PATH, HOME: process.env.HOME, NODE_ENV: process.env.NODE_ENV },
   });
   return NextResponse.json(JSON.parse(stdout), {
     headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },

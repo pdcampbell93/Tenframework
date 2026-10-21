@@ -110,6 +110,8 @@ class OpenAIChatGPT:
         self.ten_env = ten_env
         ten_env.log_info("OpenAIChatGPT initialized (credentials omitted)")
         self.guard = SecurityGuard() if config.security_enabled else None
+        if self.guard is not None:
+            self.guard.event("worker", "ready", "guard_initialized")
         self.client = AsyncOpenAI(
             api_key=config.api_key,
             base_url=config.base_url,
