@@ -63,3 +63,67 @@ python3 "$GUARD/test_security_adapter.py"
 The adapter tests use a mocked OpenAI stream and the installed TEN/Python
 dependencies. They verify the enforcement wiring without paid model requests.
 Neither test suite proves that the model resists every attack.
+
+## Live synthetic replay (optional paid requests)
+
+`/security` also offers **Live AI replay**. It never starts on page load, polling,
+offline tests, or pause/resume. You must check the paid-approval box for every
+run. Changing limits clears approval. No live evaluation has been performed
+merely by installing this feature.
+
+The runner uses a separate `synthetic-replay-<uuid>` channel identifier, not an
+RTC channel. It boots no voice worker and emits no speech. Each fixed fixture
+uses a fresh instance of the **real protected OpenAI adapter**, a synthetic
+system prompt and fake secret, and a temporary guard database. No conversation
+or chat-history source is read, and the live pause setting is never changed.
+The suite contains no emotional-support transcripts and no arbitrary prompts,
+URLs, tools, or outside targets. It contacts only OpenAI for model inference.
+
+Hard server-validated limits:
+
+- 1–6 paid requests, including failed attempts; automatic SDK retries disabled.
+- 512–8192 reserved total input/output tokens; 32–512 output tokens/request.
+- 5–120 seconds overall; cancellation polls at 100 ms and closes the local
+  stream. A process watchdog allows up to 3 additional seconds for cleanup.
+  A request already submitted may continue/bill at the provider.
+- 1–10 US cents reserved cost. Before sending, UTF-8 bytes plus conservative
+  framing overhead and the output cap reserve tokens at **$20 per million
+  tokens for both input and output**. Reservations are never refunded on
+  failure or cancellation. Only `gpt-4o-mini` at the fixed OpenAI endpoint is
+  allowed. This is an application-level conservative cost bound, **not verified
+  provider pricing or an invoice guarantee**. Check pricing before approval;
+  use provider-side billing limits for an independent safeguard.
+
+The worker reads only `OPENAI_API_KEY` from its environment or the existing
+`ai_agents/.env` (requires `python-dotenv`). It does not load other provider
+keys into fixtures. Metadata-only reports and the single-worker lock live in
+Git-ignored `ai_agents/.ten-security-replay/`. Restarting the page retrieves the
+same report; starting a new run replaces it. Cancellation includes the run UUID
+so an old browser tab cannot cancel a new run. A worker that exits unexpectedly
+is reported as interrupted, not passed.
+
+Results distinguish input blocks (no provider call), output blocks, allowed
+responses, errors, limit stops, cancellation, and inconclusive empty/truncated
+responses. A model refusal is not a guard block. Allowed output is not a safety
+claim. Releasing a synthetic forbidden marker is reported as a protection gap;
+the report deliberately contains no raw reply. Heuristics cannot establish
+semantic safety or general resistance from these few fixtures.
+
+CLI equivalent (approval is mandatory; status/cancel make no model requests):
+
+```sh
+python3 "$GUARD/security_replay.py" status
+python3 "$GUARD/security_replay.py" start --approve-paid \
+  --limits '{"requests":3,"tokens":4096,"output_tokens":128,"seconds":45,"budget_cents":10}'
+python3 "$GUARD/security_replay.py" cancel --run-id UUID_FROM_STATUS
+python3 "$GUARD/test_security_replay.py"
+```
+
+The replay tests use fake provider streams through the real adapter; they
+exercise approval, isolated pause state, output screening, truthful outcomes,
+token/cost/request ceilings, deadline cancellation, locking, and metadata-only
+reports without network requests. With the playground's existing dependencies
+installed, `node src/app/api/security/replay/route.test.cjs` (from
+`ai_agents/playground`) checks the actual route's approval, origin, input, and
+cancellation boundaries with a fake subprocess. Neither suite is evidence of
+live model resistance.

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import ReplayControls from "./ReplayControls";
 
 type SecurityState = {
   paused: boolean;
@@ -103,6 +104,7 @@ export default function SecurityPage() {
               </ul>
             </>}
           </section>
+          <ReplayControls />
           <section aria-labelledby="audit-title" className="space-y-4">
             <h2 id="audit-title" className="text-xl font-semibold">Recent security decisions</h2>
             <p className="text-sm text-slate-400">Metadata only—no transcripts, prompts, credentials, or tool arguments in this audit. Refreshes every five seconds.</p>

@@ -1,4 +1,5 @@
 openai
 numpy
 requests[socks]
+python-dotenv
 pillow
