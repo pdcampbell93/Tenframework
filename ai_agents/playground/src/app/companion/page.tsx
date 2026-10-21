@@ -103,7 +103,7 @@ export default function CompanionPage() {
     setMessages(next); setComposer(""); setBusy(true); setChatError(""); setRecalls([]); setChatSources([]); setMemoryWarning("");
     try {
       const result = await request<ChatResponse>({ action: "chat", messages: next });
-      setMessages((current) => [...current, { role: "assistant", content: result.reply }].slice(-24));
+      setMessages((current) => [...current, { role: "assistant" as const, content: result.reply }].slice(-24));
       setRecalls(result.recalls || []); setChatSources(result.sources || []); setMemoryWarning(result.memory_warning || "");
     } catch (error) {
       // Keep the user's message visible and in memory for retry; never persist transcripts locally.
@@ -118,7 +118,7 @@ export default function CompanionPage() {
     setBusy(true); setChatError("");
     try {
       const result = await request<ChatResponse>({ action: "chat", messages });
-      setMessages((current) => [...current, { role: "assistant", content: result.reply }].slice(-24));
+      setMessages((current) => [...current, { role: "assistant" as const, content: result.reply }].slice(-24));
       setRecalls(result.recalls || []); setChatSources(result.sources || []); setMemoryWarning(result.memory_warning || "");
     } catch (error) {
       setChatError(error instanceof Error ? error.message : "Message could not be sent.");
