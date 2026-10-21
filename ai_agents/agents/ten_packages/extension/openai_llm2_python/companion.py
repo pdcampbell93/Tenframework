@@ -50,7 +50,7 @@ async def handle(body, client=None, store=None, guard=None):
             "memories": store.list(), "knowledge": REFERENCES,
             "privacy": {
                 "approval_required": True, "embedding_model": EMBEDDING_MODEL,
-                "storage": "Private Codespace SQLite; not encrypted at rest",
+                "storage": "Private Codespace SQLite; approved text and vectors encrypted at rest with AES-256-GCM",
                 "recent_limit": RECENT_LIMIT,
             },
         }
