@@ -9,6 +9,9 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 HERE = Path(__file__).resolve().parent
+# Do not let this extension's openai.py shadow the installed OpenAI SDK when
+# this test is launched directly from the command line.
+sys.path = [entry for entry in sys.path if Path(entry or ".").resolve() != HERE]
 AI_AGENTS = HERE.parents[3]
 BASE = AI_AGENTS / "agents/examples/voice-assistant/tenapp/ten_packages/system/ten_ai_base/interface/ten_ai_base"
 
