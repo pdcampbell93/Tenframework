@@ -69,7 +69,8 @@ export async function POST(request: NextRequest) {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.length;
-      if (size > 60000) {
+      // A 2 MiB UTF-8 file can double when escaped inside the JSON envelope.
+      if (size > 4 * 1024 * 1024 + 1024) {
         await reader.cancel();
         return NextResponse.json({ error: "Request too large." }, { status: 413 });
       }
@@ -78,6 +79,9 @@ export async function POST(request: NextRequest) {
     const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
     if (!body || Array.isArray(body) || typeof body !== "object") {
       return NextResponse.json({ error: "JSON object required." }, { status: 400 });
+    }
+    if (!["import_preview", "import_save"].includes(body.action) && size > 60000) {
+      return NextResponse.json({ error: "Request too large." }, { status: 413 });
     }
     const now = Date.now();
     while (recentCalls.length && now - recentCalls[0] > 60_000) recentCalls.shift();

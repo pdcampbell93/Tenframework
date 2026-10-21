@@ -15,6 +15,7 @@ const compiled = ts.transpileModule(source, {
 assert.equal(compiled.diagnostics.length, 0);
 const syntheticKey = Buffer.alloc(32, 71).toString("base64");
 let lastSpawn;
+let lastBody;
 let result = { privacy: { storage: "AES-256-GCM" }, memories: [] };
 let exitCode = 0;
 const fakeSpawn = (command, args, options) => {
@@ -24,7 +25,8 @@ const fakeSpawn = (command, args, options) => {
   child.stdout = new EventEmitter();
   child.stdout.setEncoding = () => {};
   child.stdin = new EventEmitter();
-  child.stdin.end = () => queueMicrotask(() => {
+  child.stdin.end = (body) => queueMicrotask(() => {
+    lastBody = JSON.parse(body);
     child.stdout.emit("data", JSON.stringify(result));
     child.emit("close", exitCode);
   });
@@ -64,5 +66,26 @@ vm.runInNewContext(compiled.outputText, sandbox);
     headers: new Headers({ origin: "https://other.invalid", host: "private.invalid" }),
   });
   assert.equal(rejected.options.status, 403);
-  console.log("Companion route: server-only key forwarding, no-store success/errors and same-origin checks passed.");
+  const post = (body, contentType = "application/json") => sandbox.exports.POST({
+    headers: new Headers({ origin: "https://private.invalid", host: "private.invalid", "content-type": contentType }),
+    body: new ReadableStream({ start(controller) {
+      controller.enqueue(Buffer.from(body));
+      controller.close();
+    } }),
+  });
+  exitCode = 0;
+  result = { notes: [], limits: { batch: 10 } };
+  const file = JSON.stringify({ exported: "2026-10-21T00:00:00Z", memories: [] }) + " ".repeat(70000);
+  const preview = await post(JSON.stringify({ action: "import_preview", file }));
+  assert.equal(preview.options.status, 200);
+  assert.equal(lastBody.file, file);
+  assert.equal(preview.options.headers["Cache-Control"], "no-store");
+  const selection = { action: "import_save", approved: true, provider_consent: true, texts: ["Synthetic reviewed note"] };
+  assert.equal((await post(JSON.stringify(selection))).options.status, 200);
+  assert.deepEqual(JSON.parse(JSON.stringify(lastBody)), selection);
+  assert.equal((await post("x".repeat(4 * 1024 * 1024 + 1025))).options.status, 413);
+  assert.equal((await post(JSON.stringify({ action: "save", text: "x".repeat(60000) }))).options.status, 413);
+  assert.equal((await post("not json")).options.status, 400);
+  assert.equal((await post("{}", "text/plain")).options.status, 415);
+  console.log("Companion route: server-only key, no-store, same-origin, import forwarding and bounded upload checks passed.");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

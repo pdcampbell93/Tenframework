@@ -8,6 +8,7 @@ import sys
 from knowledge import REFERENCES, retrieve_knowledge
 from memory_store import MemoryStore, EMBEDDING_MODEL, context_block
 from security import SecurityGuard, BLOCK_MESSAGE, PAUSE_MESSAGE
+from memory_import import preview_backup, import_selected
 
 # This directory's openai.py is a TEN adapter, not the installed SDK.
 HERE = Path(__file__).resolve().parent
@@ -45,6 +46,13 @@ async def handle(body, client=None, store=None, guard=None):
     store = store or MemoryStore()
     guard = guard or SecurityGuard()
     action = body.get("action", "status")
+    if action == "import_preview":
+        return preview_backup(body.get("file"), store, guard)
+    if action == "import_save":
+        return await import_selected(
+            body, store, guard,
+            lambda: client or AsyncOpenAI(timeout=35, max_retries=0),
+        )
     if action == "status":
         return {
             "memories": store.list(), "knowledge": REFERENCES,
@@ -135,12 +143,15 @@ async def handle(body, client=None, store=None, guard=None):
 
 async def main():
     try:
-        raw = sys.stdin.read(60001)
-        if len(raw) > 60000:
+        transport_limit = 4 * 1024 * 1024 + 1024
+        raw = sys.stdin.buffer.read(transport_limit + 1)
+        if len(raw) > transport_limit:
             raise ValueError("Request too large.")
-        body = json.loads(raw or "{}")
+        body = json.loads(raw.decode("utf-8") or "{}")
         if not isinstance(body, dict):
             raise ValueError("JSON object required.")
+        if body.get("action") not in ("import_preview", "import_save") and len(raw) > 60000:
+            raise ValueError("Request too large.")
         result = await handle(body)
         print(json.dumps(result, ensure_ascii=False))
     except ValueError as error:
@@ -148,7 +159,7 @@ async def main():
         raise SystemExit(2)
     except Exception:
         # Provider exceptions can contain credentials or input; never serialize them.
-        print(json.dumps({"error": "Companion service unavailable. Check account access or try again; no draft was saved."}))
+        print(json.dumps({"error": "Companion service unavailable. Some approved saves may already have completed; refresh memories before retrying."}))
         raise SystemExit(3)
 
 

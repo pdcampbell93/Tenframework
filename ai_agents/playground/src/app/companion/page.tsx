@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import styles from "./companion.module.css";
+import MemoryImport from "./memory-import";
 
 type Message = { role: "user" | "assistant"; content: string };
 type Memory = { id: number; text: string; created: number; updated: number };
@@ -239,6 +240,10 @@ export default function CompanionPage() {
                 <div className={styles.actionsRow}><button className={styles.quietButton} type="button" onClick={() => void createSummary(false)} disabled={summaryBusy || messages.length === 0}>{summaryBusy ? "Preparing…" : "Suggest summary"}</button>{(draft || draftTouched) && <button className={styles.quietButton} type="button" onClick={() => { setDraft(""); draftRef.current = ""; setDraftTouched(false); draftTouchedRef.current = false; setSummaryError(""); }}>Discard draft</button>}<button className={styles.primaryButton} type="button" onClick={() => void saveMemory()} disabled={saving || !draft.trim()}>{saving ? "Saving…" : "Approve & save"}</button></div>
                 {saveError && <p className={styles.inlineError} role="alert">{saveError}</p>}
                 <div className={styles.memoryToolbar}><span>APPROVED MEMORIES</span><button type="button" onClick={exportMemories} disabled={!data.memories.length}>Export JSON</button></div>
+                <MemoryImport request={request} onMemories={(memories) => {
+                  setData((current) => current ? { ...current, memories } : current);
+                  setSearchResults(null);
+                }} />
                 {!data.memories.length ? <div className={styles.emptyMemory}>No approved memories yet. Your space stays yours until you choose otherwise.</div> :
                   <ul className={styles.memoryList}>{data.memories.map((memory) => <li key={memory.id}>
                     {editingId === memory.id ? <div className={styles.editMemory}><textarea value={memoryEdit} onChange={(event) => setMemoryEdit(event.target.value)} aria-label="Edit approved memory" /><div><button type="button" onClick={() => void updateMemory(memory.id)} disabled={saving || !memoryEdit.trim()}>Save changes</button><button type="button" onClick={() => { setEditingId(null); setMemoryEdit(""); }}>Cancel</button></div></div> :

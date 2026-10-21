@@ -253,7 +253,7 @@ m.migrate(sys.argv[1], acknowledged=True)
             output = io.StringIO()
             with patch.dict(os.environ, {"TEN_MEMORY_KEY": value}):
                 with patch.object(companion, "MemoryStore", side_effect=lambda: original(self.directory)):
-                    with patch("sys.stdin", io.StringIO('{"action":"status"}')), patch("sys.stdout", output):
+                    with patch("sys.stdin", io.TextIOWrapper(io.BytesIO(b'{"action":"status"}'))), patch("sys.stdout", output):
                         with self.assertRaises(SystemExit) as stopped:
                             await companion.main()
             self.assertEqual(stopped.exception.code, 2)
