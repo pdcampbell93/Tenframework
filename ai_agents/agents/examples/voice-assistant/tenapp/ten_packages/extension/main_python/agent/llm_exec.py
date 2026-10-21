@@ -132,6 +132,9 @@ class LLMExec:
         """
         ten_env.log_info(f"_queue_context: {new_message}")
         self.contexts.append(new_message)
+        # Recent conversation is transient; approved durable notes are retrieved
+        # separately. Do not retain an unbounded transcript in worker memory.
+        self.contexts = self.contexts[-24:]
 
     async def _write_context(
         self,

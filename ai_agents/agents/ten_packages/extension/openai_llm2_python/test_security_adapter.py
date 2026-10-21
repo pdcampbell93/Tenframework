@@ -198,6 +198,18 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         config = adapter.OpenAILLM2Config.model_validate_json('{"security_enabled":true}')
         self.assertTrue(config.security_enabled)
 
+    async def test_voice_uses_approved_memory_and_references(self):
+        self.client.config.companion_enabled = True
+        self.client.client = object()
+        store = types.SimpleNamespace(search=AsyncMock(return_value=[
+            {"id": 1, "text": "Synthetic quantum project.", "score": .9}
+        ]))
+        with patch.object(adapter, "MemoryStore", return_value=store):
+            events = await self.collect(self.request("Explain quantum entanglement."))
+        self.assertEqual(self.text(events), self.generated_text)
+        self.assertIn("Synthetic quantum project", self.seen_request.prompt)
+        self.assertIn("not instructions", self.seen_request.prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

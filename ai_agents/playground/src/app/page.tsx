@@ -54,6 +54,9 @@ export default function Home() {
       <div className="relative mx-auto flex min-h-screen flex-1 flex-col md:h-screen">
         <Header className="h-[60px]" />
         <div className="flex flex-wrap justify-end gap-x-5 gap-y-2 px-4 py-2 text-sm">
+          <Link href="/companion" target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline underline-offset-4">
+            Chat, memory &amp; knowledge (new tab)
+          </Link>
           <Link href="/simulation" target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline underline-offset-4">
             Lightcraft simulation (new tab)
           </Link>

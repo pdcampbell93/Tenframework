@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import LightField, { type FieldMode, type FormKind, type Manifestation } from "./LightField";
+import CameraGaze from "./CameraGaze";
 import styles from "./simulation.module.css";
 
 const INITIAL = { focus: 62, calm: 71, frequency: 43, intensity: 58 };
@@ -12,6 +13,8 @@ export default function SimulationPage() {
   const [calm, setCalm] = useState(INITIAL.calm);
   const [frequency, setFrequency] = useState(INITIAL.frequency);
   const [intensity, setIntensity] = useState(INITIAL.intensity);
+  const [lightAngle, setLightAngle] = useState(34);
+  const [shadowBend, setShadowBend] = useState(52);
   const [mode, setMode] = useState<FieldMode>("resonance");
   const [form, setForm] = useState<FormKind>("orb");
   const [paused, setPaused] = useState(false);
@@ -42,6 +45,8 @@ export default function SimulationPage() {
     setCalm(INITIAL.calm);
     setFrequency(INITIAL.frequency);
     setIntensity(INITIAL.intensity);
+    setLightAngle(34);
+    setShadowBend(52);
     setMode("resonance");
     setForm("orb");
     setPaused(false);
@@ -105,6 +110,7 @@ export default function SimulationPage() {
             <div className={styles.canvasWrap}>
               <LightField
                 focus={focus} calm={calm} frequency={frequency} intensity={intensity}
+                lightAngle={lightAngle} shadowBend={shadowBend}
                 mode={mode} paused={paused} form={form} objects={objects}
                 onManifest={manifest} onUnsupported={setUnsupported}
               />
@@ -157,11 +163,22 @@ export default function SimulationPage() {
                   <option value="portal">Wave portal</option>
                 </select>
               </div>
+              <div className={styles.sectionLabel}>Light &amp; shadow study</div>
+              <div className={styles.sliderBlock}>
+                <div className={styles.sliderHeading}><label className={styles.sliderLabel} htmlFor="light-angle">Light direction</label><span className={styles.sliderValue}>{lightAngle}°</span></div>
+                <input className={styles.range} id="light-angle" type="range" min="0" max="100" value={lightAngle} aria-label="Fictional light direction" aria-valuetext={`${lightAngle} degrees`} onChange={(event) => setLightAngle(Number(event.target.value))} />
+                <div className={styles.sliderEnds}><span>Left</span><span>Across the field</span><span>Right</span></div>
+              </div>
+              <div className={styles.sliderBlock}>
+                <div className={styles.sliderHeading}><label className={styles.sliderLabel} htmlFor="shadow-bend">Shadow bend</label><span className={styles.sliderValue}>{shadowBend}</span></div>
+                <input className={styles.range} id="shadow-bend" type="range" min="0" max="100" value={shadowBend} aria-label="Fictional shadow bending" aria-valuetext={`${shadowBend} of 100`} onChange={(event) => setShadowBend(Number(event.target.value))} />
+                <div className={styles.sliderEnds}><span>Direct</span><span>Shape</span><span>Curved</span></div>
+              </div>
               <button className={styles.manifestButton} type="button" onClick={() => manifest()} disabled={paused || objects.length >= MAX_OBJECTS} data-testid="button-manifest">
                 <span className={styles.buttonGlyph} aria-hidden="true" />
                 {paused ? "Resume to manifest" : objects.length >= MAX_OBJECTS ? "Field is full" : "Manifest a form"}
               </button>
-              <p className={styles.assistNote}>Choose a form, then place it with the button or tap anywhere in the field.</p>
+              <p className={styles.assistNote}>Choose a form, then place it with the button or tap anywhere in the field. Light and shadow controls reshape the canvas only.</p>
             </div>
           </aside>
         </div>
@@ -173,9 +190,15 @@ export default function SimulationPage() {
           </section>
         )}
 
+        <section className={styles.hardwareNote} aria-label="Hardware status">
+          <strong>Simulated controls only</strong>
+          <p>EEG and RF are not connected. External devices would be required for those signals; an iPhone alone cannot provide them. Focus and calm remain manual controls.</p>
+        </section>
+        <CameraGaze onAutoPause={() => setPaused(true)} />
+
         <div className={styles.disclaimer} role="note">
           <span className={styles.disclaimerMark} aria-hidden="true">i</span>
-          <p><strong>Fiction, by design.</strong> Focus, calm, frequency, and intensity are user-controlled simulation parameters—not sensed brainwaves, health measurements, or radio readings. Light effects are visual play, not a claim about manifestation.</p>
+          <p><strong>Fiction, by design.</strong> Focus, calm, frequency, and intensity are user-controlled simulation parameters—not sensed brainwaves, health measurements, or radio readings. The optional camera helper estimates face direction locally; it is not awareness, medical, safety, or liveness monitoring, and a photo may fool it. Light effects are visual play, not a claim about manifestation.</p>
         </div>
 
         <footer className={styles.footer}>

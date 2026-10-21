@@ -6,6 +6,7 @@
 #
 #
 from collections import defaultdict
+import asyncio
 from contextlib import aclosing
 from dataclasses import dataclass, field
 from enum import Enum
@@ -35,6 +36,8 @@ from ten_ai_base.struct import (
 from ten_ai_base.types import LLMToolMetadata
 from ten_runtime.async_ten_env import AsyncTenEnv
 from .security import SecurityGuard, BLOCK_MESSAGE, PAUSE_MESSAGE
+from .memory_store import MemoryStore, context_block
+from .knowledge import retrieve_knowledge
 
 
 @dataclass
@@ -53,6 +56,7 @@ class OpenAILLM2Config(BaseModel):
     seed: int = random.randint(0, 1000000)
     prompt: str = "You are a helpful assistant."
     security_enabled: bool = False
+    companion_enabled: bool = False
     black_list_params: List[str] = field(
         default_factory=lambda: ["messages", "tools", "stream", "n", "model"]
     )
@@ -174,7 +178,7 @@ class OpenAIChatGPT:
         stage = "input"
         try:
             rule = self.guard.begin()
-            messages = list(request_input.messages)
+            messages = list(request_input.messages)[-24:]
             last_user = max(
                 (i for i, item in enumerate(messages)
                  if isinstance(item, LLMMessageContent) and item.role == "user"),
@@ -210,9 +214,38 @@ class OpenAIChatGPT:
                     elif detected:
                         rule = detected
             if not rule:
+                prompt = self.config.prompt
+                if getattr(self.config, "companion_enabled", False):
+                    query = next((
+                        message.content for message in reversed(messages)
+                        if isinstance(message, LLMMessageContent)
+                        and message.role == "user" and isinstance(message.content, str)
+                    ), "")
+                    references = retrieve_knowledge(query)
+                    try:
+                        notes = await asyncio.wait_for(
+                            MemoryStore().search(self.client, query), timeout=8
+                        )
+                        notes = [note for note in notes if not self.guard.check_text(note["text"])]
+                    except Exception:
+                        notes = []
+                        prompt += "\nPersonal memory recall is unavailable; do not claim to recall saved notes."
+                        self.ten_env.log_info("Personal memory recall unavailable (details omitted)")
+                    prompt += context_block(notes, references)
+                if self.guard.paused():
+                    self.guard.event("input", "blocked", "paused")
+                    response_id = str(uuid.uuid4())
+                    yield LLMResponseMessageDelta(
+                        response_id=response_id, role="assistant",
+                        content=PAUSE_MESSAGE, delta=PAUSE_MESSAGE,
+                    )
+                    yield LLMResponseMessageDone(
+                        response_id=response_id, role="assistant", content=PAUSE_MESSAGE,
+                    )
+                    return
                 # User- or request-supplied prompts/parameters cannot override policy.
                 protected = request_input.model_copy(update={
-                    "messages": messages, "prompt": self.config.prompt,
+                    "messages": messages[-24:], "prompt": prompt,
                     "tools": [], "parameters": {}, "streaming": True,
                 })
                 buffered = []

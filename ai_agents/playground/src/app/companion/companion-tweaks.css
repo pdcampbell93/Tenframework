@@ -1,0 +1,12 @@
+.page .composer textarea,
+.page .draft,
+.page .editMemory textarea {
+  font-family: inherit;
+}
+
+.page .localTag {
+  margin-left: 7px;
+  color: var(--soft);
+  font: 7px ui-monospace, monospace;
+  letter-spacing: .1em;
+}

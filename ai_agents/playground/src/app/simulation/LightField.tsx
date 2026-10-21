@@ -13,6 +13,8 @@ type Props = {
   calm: number;
   frequency: number;
   intensity: number;
+  lightAngle: number;
+  shadowBend: number;
   mode: FieldMode;
   paused: boolean;
   form: FormKind;
@@ -70,6 +72,8 @@ export default function LightField(props: Props) {
       const frequency = state.frequency / 100;
       const intensity = state.intensity / 100;
       const calm = state.calm / 100;
+      const lightDirection = state.lightAngle / 100;
+      const bend = state.shadowBend / 100;
       ctx.fillStyle = "#0b171b";
       ctx.fillRect(0, 0, width, height);
 
@@ -79,6 +83,29 @@ export default function LightField(props: Props) {
       halo.addColorStop(1, "rgba(11, 23, 27, 0)");
       ctx.fillStyle = halo;
       ctx.fillRect(0, 0, width, height);
+
+      // Fictional light source and a bendable cast-shadow silhouette, both driven by manual controls.
+      const sourceX = width * (.12 + lightDirection * .76);
+      const sourceY = height * .12;
+      const beam = ctx.createRadialGradient(sourceX, sourceY, 2, sourceX, sourceY, base * .78);
+      beam.addColorStop(0, `rgba(255, 222, 174, ${.12 + intensity * .12})`);
+      beam.addColorStop(.42, `rgba(255, 201, 155, ${.045 + intensity * .05})`);
+      beam.addColorStop(1, "rgba(255, 201, 155, 0)");
+      ctx.fillStyle = beam;
+      ctx.fillRect(0, 0, width, height);
+      const shadowTop = height * (.68 + bend * .08);
+      const shadow = ctx.createLinearGradient(0, shadowTop, 0, height);
+      shadow.addColorStop(0, `rgba(5, 12, 16, ${.24 + bend * .15})`);
+      shadow.addColorStop(1, "rgba(5, 12, 16, .02)");
+      ctx.fillStyle = shadow;
+      ctx.beginPath();
+      ctx.moveTo(0, height);
+      ctx.lineTo(0, shadowTop + bend * 18);
+      ctx.bezierCurveTo(width * .22, shadowTop - bend * 44, width * .28, shadowTop + bend * 55, width * .51, shadowTop + Math.sin(lightDirection * TAU) * 19);
+      ctx.bezierCurveTo(width * .75, shadowTop - bend * 38, width * .78, shadowTop + bend * 42, width, shadowTop - bend * 9);
+      ctx.lineTo(width, height);
+      ctx.closePath();
+      ctx.fill();
 
       // Quiet cartographic ticks anchor the field without implying any sensor data.
       ctx.strokeStyle = "rgba(161, 214, 202, .075)";
@@ -177,7 +204,7 @@ export default function LightField(props: Props) {
       observer.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [props.paused, props.mode, props.focus, props.calm, props.frequency, props.intensity, props.objects]);
+  }, [props.paused, props.mode, props.focus, props.calm, props.frequency, props.intensity, props.lightAngle, props.shadowBend, props.objects]);
 
   const handleClick = (event: MouseEvent<HTMLCanvasElement>) => {
     if (latest.current.paused) return;
@@ -191,7 +218,7 @@ export default function LightField(props: Props) {
     <canvas
       ref={canvasRef}
       className={styles.canvas}
-      aria-label="Animated fictional light field. Activate to place a manifestation."
+      aria-label={`Animated fictional light field with light direction ${latest.current.lightAngle} and shadow bend ${latest.current.shadowBend}. Activate to place a manifestation.`}
       role="img"
       tabIndex={0}
       onClick={handleClick}

@@ -150,3 +150,34 @@
 @media (prefers-reduced-motion: reduce) {
   .page *, .page *::before, .page *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+.hardwareNote, .cameraCard { border: 1px solid var(--line); border-radius: 13px; background: linear-gradient(145deg, rgba(21,42,46,.88), rgba(12,26,31,.88)); }
+.hardwareNote { display: grid; grid-template-columns: 180px 1fr; gap: 12px; align-items: center; margin-top: 15px; padding: 14px 17px; }
+.hardwareNote strong { color: var(--coral); font: 9px "DM Mono", monospace; letter-spacing: .12em; text-transform: uppercase; }
+.hardwareNote p { color: var(--muted); font-size: 10px; line-height: 1.6; margin: 0; }
+.cameraCard { margin-top: 14px; padding: 18px; }
+.cameraHead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.cameraHead h3 { color: var(--ink); font: 19px Georgia, serif; font-weight: 400; margin: 7px 0 0; }
+.cameraStatus { border: 1px solid var(--line); border-radius: 999px; padding: 6px 9px; color: var(--muted); font: 8px "DM Mono", monospace; letter-spacing: .1em; }
+.cameraStatus[data-state="ready"] { color: var(--mint); border-color: rgba(169,243,220,.4); }
+.cameraCopy, .cameraState { color: var(--muted); font-size: 10px; line-height: 1.65; }
+.cameraCopy { max-width: 800px; margin: 10px 0 13px; }
+.cameraButton { min-height: 40px; border: 1px solid rgba(169,243,220,.3); border-radius: 8px; padding: 0 14px; background: rgba(169,243,220,.1); color: var(--mint); cursor: pointer; font-size: 10px; }
+.cameraButton:hover { background: rgba(169,243,220,.16); }
+.cameraButton:focus-visible, .cameraTools button:focus-visible, .cameraDetails summary:focus-visible { outline: 2px solid var(--mint); outline-offset: 3px; }
+.cameraState { display: inline-block; margin: 0 0 0 12px; }
+.cameraPreview { width: min(100%, 360px); height: 192px; position: relative; overflow: hidden; margin: 0 0 12px; border: 1px solid var(--line); border-radius: 9px; background: #071215; }
+.cameraPreview video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.cameraPreview span { position: absolute; left: 8px; bottom: 8px; padding: 5px 8px; border-radius: 5px; background: rgba(4,14,17,.8); color: var(--ink); font: 8px "DM Mono", monospace; }
+.cameraTools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 10px; }
+.cameraTools label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10px; }
+.cameraTools input { accent-color: #81c6af; }
+.cameraDetails { margin-top: 13px; border-top: 1px solid var(--line); padding-top: 11px; color: var(--muted); font-size: 10px; line-height: 1.65; }
+.cameraDetails summary { width: fit-content; color: var(--aqua); cursor: pointer; }
+.cameraDetails p { max-width: 900px; }
+.cameraDetails a { color: var(--mint); text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 720px) {
+  .hardwareNote { grid-template-columns: 1fr; gap: 6px; }
+  .cameraCard { padding: 15px; }
+  .cameraState { display: block; margin: 9px 0 0; }
+  .cameraPreview { height: 190px; }
+}

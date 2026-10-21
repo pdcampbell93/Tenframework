@@ -48,6 +48,9 @@
         },
         "security_enabled": {
           "type": "bool"
+        },
+        "companion_enabled": {
+          "type": "bool"
         }
       }
     }
