@@ -8,6 +8,7 @@ import sys
 from knowledge import REFERENCES, retrieve_knowledge
 from memory_store import MemoryStore, EMBEDDING_MODEL, context_block
 from security import SecurityGuard, BLOCK_MESSAGE, PAUSE_MESSAGE
+from companion_policy import COMPANION_POLICY, is_disengagement
 
 # This directory's openai.py is a TEN adapter, not the installed SDK.
 HERE = Path(__file__).resolve().parent
@@ -81,6 +82,11 @@ async def handle(body, client=None, store=None, guard=None):
         return {"matches": await store.search(client, text)}
 
     messages = validate_messages(body.get("messages"))
+    latest_user = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+    if is_disengagement(latest_user):
+        guard.disengage()
+    if guard.disengaged():
+        return {"disengaged": True, "reply": "", "draft": "", "recalls": [], "sources": []}
     rule = guard.begin()
     last_user = max((index for index, item in enumerate(messages) if item["role"] == "user"), default=-1)
     for index, message in enumerate(messages):
@@ -114,7 +120,7 @@ async def handle(body, client=None, store=None, guard=None):
         except Exception:
             recalls = []
             warning = "Long-term recall is temporarily unavailable; this reply uses recent chat only."
-        system = source_prompt() + context_block(recalls, references)
+        system = source_prompt() + "\n" + COMPANION_POLICY + context_block(recalls, references)
         if warning:
             system += "\nLong-term memory retrieval failed. Do not claim to recall personal notes."
     completion = await client.chat.completions.create(
@@ -123,6 +129,8 @@ async def handle(body, client=None, store=None, guard=None):
         max_tokens=500 if action == "summary" else 1536,
     )
     text = completion.choices[0].message.content or ""
+    if guard.disengaged():
+        return {"disengaged": True, "reply": "", "draft": "", "recalls": [], "sources": []}
     if guard.paused() or guard.check_text(text, "output"):
         guard.event("companion", "blocked", "response_screen")
         raise ValueError(BLOCK_MESSAGE)

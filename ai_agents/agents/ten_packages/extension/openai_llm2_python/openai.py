@@ -38,6 +38,7 @@ from ten_runtime.async_ten_env import AsyncTenEnv
 from .security import SecurityGuard, BLOCK_MESSAGE, PAUSE_MESSAGE
 from .memory_store import MemoryStore, context_block
 from .knowledge import retrieve_knowledge
+from .companion_policy import COMPANION_POLICY, is_disengagement
 
 
 @dataclass
@@ -177,8 +178,19 @@ class OpenAIChatGPT:
         rule = None
         stage = "input"
         try:
-            rule = self.guard.begin()
             messages = list(request_input.messages)[-24:]
+            latest_user = next((m for m in reversed(messages)
+                if isinstance(m, LLMMessageContent) and m.role == "user"), None)
+            latest_text = "" if latest_user is None else (
+                latest_user.content if isinstance(latest_user.content, str) else
+                "\n".join(item.text for item in latest_user.content if isinstance(item, TextContent))
+            )
+            if is_disengagement(latest_text):
+                self.guard.disengage()
+            if self.guard.disengaged():
+                yield LLMResponseMessageDone(response_id=str(uuid.uuid4()), role="assistant", content="")
+                return
+            rule = self.guard.begin()
             last_user = max(
                 (i for i, item in enumerate(messages)
                  if isinstance(item, LLMMessageContent) and item.role == "user"),
@@ -214,7 +226,7 @@ class OpenAIChatGPT:
                     elif detected:
                         rule = detected
             if not rule:
-                prompt = self.config.prompt
+                prompt = self.config.prompt + "\n" + COMPANION_POLICY
                 if getattr(self.config, "companion_enabled", False):
                     query = next((
                         message.content for message in reversed(messages)
@@ -235,12 +247,14 @@ class OpenAIChatGPT:
                 if self.guard.paused():
                     self.guard.event("input", "blocked", "paused")
                     response_id = str(uuid.uuid4())
-                    yield LLMResponseMessageDelta(
-                        response_id=response_id, role="assistant",
-                        content=PAUSE_MESSAGE, delta=PAUSE_MESSAGE,
-                    )
+                    paused_text = "" if self.guard.disengaged() else PAUSE_MESSAGE
+                    if paused_text:
+                        yield LLMResponseMessageDelta(
+                            response_id=response_id, role="assistant",
+                            content=paused_text, delta=paused_text,
+                        )
                     yield LLMResponseMessageDone(
-                        response_id=response_id, role="assistant", content=PAUSE_MESSAGE,
+                        response_id=response_id, role="assistant", content=paused_text,
                     )
                     return
                 # User- or request-supplied prompts/parameters cannot override policy.
@@ -294,9 +308,12 @@ class OpenAIChatGPT:
 
         response_id = str(uuid.uuid4())
         text = PAUSE_MESSAGE if rule == "paused" else BLOCK_MESSAGE
-        yield LLMResponseMessageDelta(
-            response_id=response_id, role="assistant", content=text, delta=text
-        )
+        if self.guard.disengaged():
+            text = ""
+        if text:
+            yield LLMResponseMessageDelta(
+                response_id=response_id, role="assistant", content=text, delta=text
+            )
         yield LLMResponseMessageDone(
             response_id=response_id, role="assistant", content=text
         )

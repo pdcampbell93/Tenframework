@@ -136,7 +136,6 @@ export default function RTCCard(props: { className?: string }) {
   };
 
   const onTextChanged = (text: IChatItem) => {
-    console.log("[rtc] onTextChanged", text);
     dispatch(addChatItem(text));
   };
 

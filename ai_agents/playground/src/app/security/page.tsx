@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 type SecurityState = {
   paused: boolean;
+  disengaged: boolean;
   scope: string;
   allowed_tools: string[];
   events: { timestamp: number; stage: string; decision: string; rule: string }[];
@@ -20,6 +21,10 @@ export default function SecurityPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
+  const [localDismissed, setLocalDismissed] = useState(false);
+  useEffect(() => {
+    try { setLocalDismissed(localStorage.getItem("ten:disengaged") === "1"); } catch { /* Server status is still checked. */ }
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -52,6 +57,10 @@ export default function SecurityPage() {
       setState(data);
       setError("");
       setNotice(action === "selftest" ? "Synthetic tests finished." : action === "pause" ? "Response pause is enabled." : "Responses resumed.");
+      if (action === "resume") {
+        try { localStorage.removeItem("ten:disengaged"); } catch { /* Server resume succeeded. */ }
+        setLocalDismissed(false);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed.");
     } finally {
@@ -72,6 +81,10 @@ export default function SecurityPage() {
             No external targets, real secrets in tests, or automatic file deletion.
           </p>
         </header>
+        {(state?.disengaged || localDismissed) && <section role="status" className="rounded-xl border border-amber-300/40 bg-amber-950/30 p-5 text-amber-100">
+          <h2 className="text-xl font-semibold">TEN is disengaged</h2>
+          <p className="mt-2">There is no automatic return or substitute assistant. Use Resume responses below only if you want to explicitly re-enable TEN, then open TEN yourself. This is a digital session stop—not physical departure or recognition of people nearby.</p>
+        </section>}
         {error && <div role="alert" className="rounded-xl border border-red-400/40 bg-red-950/40 p-4 text-red-200">{error} Status may be stale. <button onClick={() => void load()} className="underline">Retry</button></div>}
         <div role="status" aria-live="polite" className="text-sm text-cyan-200">{notice}</div>
         {!state ? <p className="text-slate-300">Loading security controls…</p> : <>
@@ -84,8 +97,8 @@ export default function SecurityPage() {
             </div>
             <p className="text-sm leading-6 text-slate-300">Pause stops new model responses at security checkpoints. It does not end the call, mute the microphone, or recall audio already queued. Use Disconnect in TEN to end the session.</p>
             <div className="flex flex-wrap gap-3">
-              <button disabled={!!busy || !!error} onClick={() => void act(state.paused ? "resume" : "pause")} className={`${button} ${state.paused ? "bg-cyan-700" : "bg-amber-900/60"}`}>
-                {busy === "pause" || busy === "resume" ? "Updating…" : state.paused ? "Resume responses" : "Pause responses"}
+              <button disabled={!!busy || !!error} onClick={() => void act(state.paused || localDismissed ? "resume" : "pause")} className={`${button} ${state.paused || localDismissed ? "bg-cyan-700" : "bg-amber-900/60"}`}>
+                {busy === "pause" || busy === "resume" ? "Updating…" : state.paused || localDismissed ? "Resume responses" : "Pause responses"}
               </button>
               <button disabled={!!busy || !!error} onClick={() => void act("selftest")} className={button}>{busy === "selftest" ? "Running tests…" : "Run synthetic attack tests"}</button>
             </div>

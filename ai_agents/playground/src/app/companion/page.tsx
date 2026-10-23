@@ -1,4 +1,5 @@
 "use client";
+import { isDisengagement, STOP_EVENT } from "@/lib/sessionSafety";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -99,10 +100,19 @@ export default function CompanionPage() {
     event?.preventDefault();
     const text = composer.trim();
     if (!text || busy) return;
+    if (isDisengagement(text)) {
+      setComposer("");
+      window.dispatchEvent(new Event(STOP_EVENT));
+      return;
+    }
     const next = [...messages, { role: "user" as const, content: text }].slice(-24);
     setMessages(next); setComposer(""); setBusy(true); setChatError(""); setRecalls([]); setChatSources([]); setMemoryWarning("");
     try {
       const result = await request<ChatResponse>({ action: "chat", messages: next });
+      if ("disengaged" in result && result.disengaged === true) {
+        window.dispatchEvent(new Event(STOP_EVENT));
+        return;
+      }
       setMessages((current) => [...current, { role: "assistant" as const, content: result.reply }].slice(-24));
       setRecalls(result.recalls || []); setChatSources(result.sources || []); setMemoryWarning(result.memory_warning || "");
     } catch (error) {

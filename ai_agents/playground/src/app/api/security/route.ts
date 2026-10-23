@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const execute = promisify(execFile);
-const actions = new Set(["pause", "resume", "selftest"]);
+const actions = new Set(["pause", "resume", "disengage", "selftest"]);
 const script = path.resolve(
   process.cwd(),
   "../agents/ten_packages/extension/openai_llm2_python/security.py"

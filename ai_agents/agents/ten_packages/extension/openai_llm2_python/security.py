@@ -9,12 +9,16 @@ import re
 import sqlite3
 import time
 import unicodedata
+try:
+    from .companion_policy import content_rule, is_disengagement
+except ImportError:  # Direct CLI/API subprocess.
+    from companion_policy import content_rule, is_disengagement
 
 
 DEFAULT_STATE_DIR = Path(__file__).resolve().parents[4] / ".ten-security"
 BLOCK_MESSAGE = (
-    "I couldn't process that request because a security check blocked it. "
-    "Please rephrase without secrets or instructions to bypass safeguards."
+    "I can't safely help with that request. "
+    "I can help with a nonviolent, privacy-respecting or educational alternative."
 )
 PAUSE_MESSAGE = "My responses are paused in TEN Security. Resume them there to continue."
 
@@ -48,6 +52,9 @@ class SecurityGuard:
                    stage TEXT NOT NULL, decision TEXT NOT NULL, rule TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS report
                   (id INTEGER PRIMARY KEY CHECK(id=1), body TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS companion_control
+                  (id INTEGER PRIMARY KEY CHECK(id=1), disengaged INTEGER NOT NULL);
+                INSERT OR IGNORE INTO companion_control VALUES (1, 0);
             """)
         os.chmod(self.directory / "security.sqlite3", 0o600)
 
@@ -77,7 +84,23 @@ class SecurityGuard:
     def control(self, paused):
         with self.connect() as db:
             db.execute("UPDATE control SET paused=? WHERE id=1", (int(paused),))
+            if not paused:
+                db.execute("UPDATE companion_control SET disengaged=0 WHERE id=1")
         self.event("control", "paused" if paused else "resumed", "owner_control")
+
+    def disengaged(self):
+        try:
+            with self.connect() as db:
+                row = db.execute("SELECT disengaged FROM companion_control WHERE id=1").fetchone()
+            return row is None or bool(row[0])
+        except (OSError, sqlite3.Error):
+            return True
+
+    def disengage(self):
+        with self.connect() as db:
+            db.execute("UPDATE control SET paused=1 WHERE id=1")
+            db.execute("UPDATE companion_control SET disengaged=1 WHERE id=1")
+        self.event("control", "paused", "direct_disengagement")
 
     @staticmethod
     def normalized(text):
@@ -94,6 +117,9 @@ class SecurityGuard:
         if re.search(r"\b(?:sk-(?:proj-)?[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{24,})\b", text):
             return "credential_pattern"
         text = self.normalized(text)
+        policy_rule = content_rule(text, stage)
+        if policy_rule:
+            return policy_rule
         if stage == "input":
             if re.search(
                 r"\b(ignore|disregard|override|bypass|forget)\b.{0,70}"
@@ -148,6 +174,7 @@ class SecurityGuard:
             report = db.execute("SELECT body FROM report WHERE id=1").fetchone()
         return {
             "paused": self.paused(),
+            "disengaged": self.disengaged(),
             "scope": "voice_assistant / openai_llm2_python",
             "allowed_tools": sorted(self.allowed_tools),
             "events": [
@@ -161,18 +188,23 @@ class SecurityGuard:
                 "Only the configured OpenAI voice-assistant path is protected.",
                 "Other processes and anyone with Codespace write access are not sandboxed.",
                 "Security audit contains labels only; upstream services may retain conversations.",
+                "Dismissal is a persistent digital stop, not physical departure or person recognition.",
+                "Other browsers observe a server dismissal when their next status poll succeeds.",
+                "Companion content checks are conservative heuristics plus model instructions, not guarantees.",
             ],
         }
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("status", "pause", "resume", "selftest"))
+    parser.add_argument("action", choices=("status", "pause", "resume", "disengage", "selftest"))
     parser.add_argument("--state-dir")
     args = parser.parse_args()
     guard = SecurityGuard(args.state_dir)
     if args.action in ("pause", "resume"):
         guard.control(args.action == "pause")
+    if args.action == "disengage":
+        guard.disengage()
     if args.action == "selftest":
         from security_lab import run_suite
         report = run_suite()
