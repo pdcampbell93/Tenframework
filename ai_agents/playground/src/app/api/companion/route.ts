@@ -7,8 +7,16 @@ export const dynamic = "force-dynamic";
 const script = path.resolve(process.cwd(), "../agents/ten_packages/extension/openai_llm2_python/companion.py");
 const recentCalls: number[] = [];
 let active = 0;
+// Availability metadata only: never retain terms, query hashes or result text.
+let lexicalBackoffUntil = 0;
 
 async function run(body: object) {
+  const isLookup = "action" in body && body.action === "lookup";
+  if (isLookup && Date.now() < lexicalBackoffUntil) {
+    return NextResponse.json({ error: "Dictionary provider recently unavailable. Try again in 15 seconds." }, {
+      status: 503, headers: { "Cache-Control": "no-store" },
+    });
+  }
   if (active >= 2) return NextResponse.json({ error: "Companion is busy. Please wait and retry." }, { status: 429 });
   active++;
   try {
@@ -37,6 +45,9 @@ async function run(body: object) {
       child.stdin.end(JSON.stringify(body));
     });
     const data = JSON.parse(result.output);
+    if (isLookup && result.code === 0 && data.status === "unavailable") {
+      lexicalBackoffUntil = Date.now() + 15_000;
+    }
     return NextResponse.json(data, {
       status: result.code === 0 ? 200 : result.code === 2 ? 400 : 503,
       headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },

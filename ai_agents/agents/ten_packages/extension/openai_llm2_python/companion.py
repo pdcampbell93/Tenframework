@@ -9,6 +9,7 @@ from knowledge import REFERENCES, retrieve_knowledge
 from memory_store import MemoryStore, EMBEDDING_MODEL, context_block
 from security import SecurityGuard, BLOCK_MESSAGE, PAUSE_MESSAGE
 from companion_policy import COMPANION_POLICY, is_disengagement
+from lexical import lookup
 
 # This directory's openai.py is a TEN adapter, not the installed SDK.
 HERE = Path(__file__).resolve().parent
@@ -43,9 +44,12 @@ def source_prompt():
 
 
 async def handle(body, client=None, store=None, guard=None):
-    store = store or MemoryStore()
     guard = guard or SecurityGuard()
     action = body.get("action", "status")
+    if action == "lookup":
+        # No note database, embeddings, model client or conversation access.
+        return await lookup(body, guard)
+    store = store or MemoryStore()
     if action == "status":
         return {
             "memories": store.list(), "knowledge": REFERENCES,
