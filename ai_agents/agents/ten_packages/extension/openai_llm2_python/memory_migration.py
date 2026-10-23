@@ -15,6 +15,12 @@ BACKUP_PURPOSE = "approved-memory-backup-v1"
 ACK = "I understand key loss and backup consequences"
 
 
+def encode_backup(cipher, rows):
+    """Shared recovery format for migration and ongoing approved-only snapshots."""
+    payload = json.dumps({"version": 1, "rows": rows}, ensure_ascii=False).encode()
+    return payload, cipher.encrypt(payload, BACKUP_PURPOSE).encode()
+
+
 def sync_directory(directory):
     fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
     try:
@@ -25,8 +31,7 @@ def sync_directory(directory):
 
 def write_backup(directory, cipher, rows):
     """Encrypt in RAM, durably write, then decrypt/compare before any DB change."""
-    payload = json.dumps({"version": 1, "rows": rows}, ensure_ascii=False).encode()
-    encrypted = cipher.encrypt(payload, BACKUP_PURPOSE).encode()
+    payload, encrypted = encode_backup(cipher, rows)
     path = directory / ("approved-before-migration-" + uuid.uuid4().hex + ".tenbackup")
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, "wb") as file:
