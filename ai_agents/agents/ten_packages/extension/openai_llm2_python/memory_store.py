@@ -88,6 +88,12 @@ class MemoryStore:
         return [{"id": row[0], "text": row[1], "created": row[4], "updated": row[5]}
                 for row in map(self.cipher.decrypt_row, rows)]
 
+    def backup_rows(self):
+        """A consistent, authenticated approved-only snapshot, held only in RAM."""
+        with self.connect() as db:
+            rows = db.execute("SELECT id,text,vector,model,created,updated FROM memories ORDER BY id").fetchall()
+            return [self.cipher.decrypt_row(row) for row in rows]
+
     @staticmethod
     def normalize(vector):
         if not isinstance(vector, list) or not vector or len(vector) > 4096:

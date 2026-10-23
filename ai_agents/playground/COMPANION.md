@@ -121,7 +121,8 @@ destination. With all workers stopped, verify recovered notes locally with
 `MemoryStore(directory=...)`, then move the old directory aside privately and
 put the verified recovery directory at `ai_agents/.ten-memory/`. Keep both until
 verified. Never print notes to shared logs. JSON-export import is a separate
-feature; this recovery accepts only the migration's encrypted backup format.
+feature; this recovery accepts the authenticated `.tenbackup` format shared by
+migration and ongoing backups.
 There is no automatic key rotation: retain the original key and backups.
 
 The protected voice-assistant OpenAI path retrieves the same approved notes
@@ -169,6 +170,156 @@ change private Codespaces access. Keep all forwarded ports **Private**.
 Cancel/discard clears the import preview from page state. No file is persisted
 by the importer, although the selected local file and original export remain
 on your device. Do not import secrets or private conversations.
+
+## Optional ongoing offsite encrypted backups
+
+The pre-migration backup is a one-time snapshot, **not** ongoing protection.
+`memory_backup.py` is a separate opt-in operator routine, not JSON import/restore
+and not a conversation recorder. It snapshots the current approved-memory table
+under its writer lock, including later reviewed saves, edits, imports and
+deletions. It does not read chat history, draft summaries, voice transcripts,
+provider logs or exported JSON files. Text and vectors are authenticated with
+the existing AES-256-GCM key entirely in RAM. Only `.tenbackup` ciphertext leaves
+the Codespace. The key is not passed to the transfer process. Filename time,
+file size and backup frequency remain visible to the destination.
+
+**Default is OFF. No destination is chosen or contacted by installing this
+change.** A missing policy is an error, not implicit consent. Never paste keys,
+decrypted notes, private conversations or credentials into a policy, repository,
+issue, chat, transfer URL or command line.
+
+### Owner setup and retention consent
+
+1. Complete encrypted-memory setup/migration above; keep an independent secure
+   recovery copy of the **original key**. Losing it makes backups unreadable.
+2. Install `rclone` using your Codespace's normal package management, and create
+   a private named remote for a destination **you own and approve outside the
+   Codespace**. This routine does not provision accounts or request credentials.
+   Configure credentials directly with the provider/rclone; use a dedicated,
+   least-privilege account and owner-only (`0600`) absolute config file outside
+   the repository. It must work unattended without inheriting TEN/provider keys,
+   `RCLONE_*` variables, an interactive config-password prompt or SSH-agent env.
+   Use authenticated encrypted transport (for example S3 HTTPS); do not use a
+   local/memory remote, Codespace disk, public bucket, FTP, or a public share.
+3. Provision a **dedicated empty folder/prefix** such as
+   `ownerbackup:private-bucket/ten-approved`. Do not share it with migration
+   snapshots or unrelated files. Unknown filenames cause the job to stop.
+   Use one scheduler/Codespace per prefix; the lock is local, not distributed.
+4. Set and verify **provider-side expiry of seven days or less** for this
+   prefix, including noncurrent versions, soft-deleted/trash copies and
+   incomplete uploads. Disable version history/object lock/immutable retention
+   if they prevent that expiry. Provider purge may be delayed by the provider's
+   lifecycle granularity: read its terms and approve that delay. Do not enable
+   if the destination cannot supply an acceptable deletion policy.
+   `provider_expiry_confirmed` is your attestation, **not an API check**;
+   this routine cannot audit the provider's hidden backups or guarantee erasure.
+5. Create an owner-only (`0600`) policy **outside the repository**. Replace the
+   two example paths below with your approved remote and actual private config:
+
+   ```json
+   {
+     "version": 1,
+     "enabled": true,
+     "destination": "ownerbackup:private-bucket/ten-approved",
+     "rclone_config": "/home/vscode/.config/rclone/rclone.conf",
+     "consent": "I approve this offsite destination and the deleted-note retention described in COMPANION.md",
+     "offsite_confirmed": true,
+     "provider_expiry_confirmed": true
+   }
+   ```
+
+   The policy is bound to the exact destination/config named in it. If these
+   change, recheck ownership, transport and expiry, and approve the new policy.
+
+**Retention:** every successful run keeps at most 24 snapshots, removes snapshots
+seven days old or older, and uploads at most one new snapshot (32 MiB maximum).
+Count/age pruning happens **before** upload; if the new upload fails you may have
+fewer recovery points. Expired snapshots are not kept as a silent fallback.
+The routine never automatically deletes local pre-migration backups or JSON
+exports; review and remove those separately when no longer needed.
+
+**Deleted notes and edits:** deletion affects the active store immediately, but
+older snapshots can still recover the deleted note or earlier text until expiry.
+Restoring an older snapshot can resurrect deleted notes: inspect the restored
+store before enabling recall. If the Codespace stops, its schedule and pruning
+stop too; provider-side expiry is the independent expiry mechanism. If that
+policy is removed/misconfigured, remote copies can remain indefinitely.
+Turning backups off does **not** purge existing copies. For immediate removal,
+stop the schedule, delete all snapshots in the dedicated prefix and purge
+provider versions/trash; manually downloaded copies require separate deletion.
+No application can erase information already sent to a provider.
+
+### Schedule, verify, disable
+
+From the repository root, with the existing `TEN_MEMORY_KEY` supplied privately
+by the Codespaces environment, run:
+
+```sh
+python3 ai_agents/agents/ten_packages/extension/openai_llm2_python/memory_backup.py \
+  --policy /home/vscode/.config/ten/backup-policy.json
+```
+
+Use `--directory /absolute/path/to/.ten-memory` only if the active approved store
+is elsewhere. A missing store is an error, not a new empty store. No migration
+or live worker restart is performed. Saves are not blocked by remote transfer
+and a backup failure never rolls back an approved note.
+
+The command returns 0 only for a verified backup or an explicitly disabled
+policy; failure returns 2 with a fixed message, never provider diagnostics.
+Verification downloads the uploaded ciphertext, compares bytes and authenticates
+and compares the payload in RAM. An upload alone is not reported as success.
+Interrupted uploads may leave unverified files; the next run prunes them by the
+same count/age rules. Failed verification does not make that file a recovery
+point. No decrypted temporary file is created.
+
+To enable ongoing protection, register this same one-shot command with your
+owner-managed scheduler **hourly while the Codespace is running**, using a login
+shell that receives the Codespaces secret. For a manual foreground alternative:
+
+```sh
+while true; do
+  python3 ai_agents/agents/ten_packages/extension/openai_llm2_python/memory_backup.py \
+    --policy /home/vscode/.config/ten/backup-policy.json
+  sleep 3600
+done
+```
+
+Do not put the key itself in a crontab, service unit or script. Do not assume a
+cron daemon inherits Codespaces secrets; first verify a one-shot run through
+that scheduler succeeds. Monitor its exit status and last verified-run time:
+there is no UI alert or always-on external scheduler in this change.
+Hourly protection has up to an hour of data-loss exposure plus transfer time;
+if the Codespace/schedule is stopped or a run fails, exposure lasts until the
+next verified run. An edit followed by deletion between runs will not be backed
+up (intentionally). Run once manually after important saves if needed.
+
+To disable, stop the scheduler and set `"enabled": false` in the policy. This
+stops all transfer/pruning, not local saves or recall. Keep independent provider
+expiry in place or explicitly purge remote copies as described above.
+
+### Recovery drill (synthetic data only)
+
+Run `python3 ai_agents/agents/ten_packages/extension/openai_llm2_python/test_memory_backup.py`
+before activation. It uses a temporary synthetic key, fake provider and fake
+offsite storage to verify save/edit/import/delete snapshots, independent recovery
+into a new encrypted store, semantic recall, count/age limits, failures and key/
+tamper rejection. It never contacts a remote or reads the live notes/key.
+
+Before trusting your actual remote, repeat a drill with a **separate synthetic
+store, separate temporary key, separate dedicated test prefix and separate
+policy**. Never substitute a production key or copy a live database into a
+test. Confirm upload/download verification and provider expiry, and retrieve a
+synthetic `.tenbackup` with rclone into a private directory outside the repo.
+Use the existing `memory_migration.py --restore-backup` recovery command above
+with that synthetic key and a **new** destination directory. Inspect the
+recovered synthetic notes and test recall. Purge test objects/versions and
+discard the synthetic key afterward. This operator/provider drill is not
+claimed to have run by the offline tests.
+
+Real recovery uses the original key and the same authenticated recovery command;
+it refuses to overwrite an existing directory and writes encrypted text/vectors.
+Keep recovered notes private. A plaintext JSON export is not a `.tenbackup`
+and is not accepted by this routine.
 
 ## Optional camera and fictional effects
 
