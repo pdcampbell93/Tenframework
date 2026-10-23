@@ -4,6 +4,7 @@ import { isDisengagement, STOP_EVENT } from "@/lib/sessionSafety";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import styles from "./companion.module.css";
+import LanguageLookup from "@/components/LanguageLookup";
 
 type Message = { role: "user" | "assistant"; content: string };
 type Memory = { id: number; text: string; created: number; updated: number };
@@ -240,6 +241,7 @@ export default function CompanionPage() {
             </section>
 
             <aside className={styles.sideColumn}>
+              <LanguageLookup />
               <section className={styles.memoryCard}>
                 <div className={styles.sideHeading}><div><span className={styles.eyebrow}>01 / Keep only what helps</span><h2>Memory, by permission</h2></div><span className={styles.count}>{data.memories.length}</span></div>
                 <p className={styles.smallCopy}>Suggested summaries are drafts. Nothing is added until you edit if needed, then choose save.</p>

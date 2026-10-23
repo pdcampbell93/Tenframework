@@ -48,6 +48,28 @@ class CompanionTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(response["privacy"]["approval_required"])
         self.assertEqual(len(self.client.calls), 0)
 
+    async def test_lookup_never_opens_memory_or_calls_paid_client(self):
+        entries = [{
+            "word": "cool",
+            "license": {"url": "https://creativecommons.org/licenses/by-sa/3.0"},
+            "sourceUrls": ["https://en.wiktionary.org/wiki/cool"],
+            "meanings": [{"partOfSpeech": "adjective", "definitions": [
+                {"definition": "Slightly cold.", "synonyms": ["chilly"]},
+            ]}],
+        }]
+        with patch("companion.MemoryStore", side_effect=AssertionError("No memory access")), \
+                patch("companion.AsyncOpenAI", side_effect=AssertionError("No paid client")), \
+                patch("lexical.fetch_entries", return_value=entries) as fetch:
+            result = await companion.handle(
+                {"action": "lookup", "term": "cool", "mode": "synonyms", "consent": True},
+                guard=self.guard,
+            )
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["senses"][0]["synonyms"], ["chilly"])
+        fetch.assert_called_once_with("cool")
+        self.assertEqual(self.client.calls, [])
+        self.assertEqual(self.store.list(), [])
+
     async def test_save_without_approval_rejected_before_embedding(self):
         with self.assertRaises(ValueError):
             await self.handle({"action": "save", "text": "I am designing a synthetic game."})

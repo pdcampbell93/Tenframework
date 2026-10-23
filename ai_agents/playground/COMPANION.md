@@ -1,5 +1,11 @@
 # TEN companion, memory, and optional gaze
 
+## Language lookup
+
+The separate owner-approved dictionary/thesaurus/slang form is documented in
+[LEXICAL_LOOKUP.md](./LEXICAL_LOOKUP.md), including open-source attribution,
+coverage limits, privacy, cancellation and synthetic verification.
+
 ## Conversation and references
 
 `/companion` provides text chat with 24 recent transient messages, editable
