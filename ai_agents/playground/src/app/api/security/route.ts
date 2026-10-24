@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
 import { type NextRequest, NextResponse } from "next/server";
+import { cancelActiveRun } from "@/lib/server/sandbox";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,7 +67,12 @@ export async function POST(request: NextRequest) {
     if (!actions.has(action)) {
       return NextResponse.json({ error: "Unknown security action." }, { status: 400 });
     }
-    return await run(action);
+    const response = await run(action);
+    if (action === "pause" || action === "disengage") {
+      // The guard latch is already set. Worker polling remains a fail-closed backup.
+      await cancelActiveRun().catch(() => {});
+    }
+    return response;
   } catch {
     return NextResponse.json({ error: "Security action failed." }, { status: 503 });
   }

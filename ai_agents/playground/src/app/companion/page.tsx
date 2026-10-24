@@ -4,6 +4,7 @@ import { isDisengagement, STOP_EVENT } from "@/lib/sessionSafety";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import styles from "./companion.module.css";
+import CodeRunner from "@/components/Companion/CodeRunner";
 
 type Message = { role: "user" | "assistant"; content: string };
 type Memory = { id: number; text: string; created: number; updated: number };
@@ -99,12 +100,13 @@ export default function CompanionPage() {
   async function sendMessage(event?: FormEvent) {
     event?.preventDefault();
     const text = composer.trim();
-    if (!text || busy) return;
+    if (!text) return;
     if (isDisengagement(text)) {
       setComposer("");
       window.dispatchEvent(new Event(STOP_EVENT));
       return;
     }
+    if (busy) return;
     const next = [...messages, { role: "user" as const, content: text }].slice(-24);
     setMessages(next); setComposer(""); setBusy(true); setChatError(""); setRecalls([]); setChatSources([]); setMemoryWarning("");
     try {
@@ -206,6 +208,11 @@ export default function CompanionPage() {
           <h1>Here with you.<br /><em>Long-term memory is your choice.</em></h1>
           <p>Supportive or technical, at your pace. This tab keeps recent chat until it reloads. You choose which notes to review and save.</p>
         </section>
+
+        <details style={{ marginBottom: 24 }}>
+          <summary style={{ padding: 16, cursor: "pointer", border: "1px solid #ccd9cf", borderRadius: 12 }}>Python / game logic console — review and run code</summary>
+          <CodeRunner suggestedCode={[...messages].reverse().filter(message => message.role === "assistant").map(message => /```python\s*\n([\s\S]*?)```/i.exec(message.content)?.[1]).find(Boolean)} />
+        </details>
 
         {loadError ? <div className={styles.errorBox} role="alert"><strong>Couldn’t connect to your companion.</strong><span>{loadError}</span><button onClick={() => void load()}>Try again</button></div> : !data ? (
           <section className={styles.loading} aria-label="Loading companion"><div className={styles.skeletonLine} /><div className={styles.skeletonCard} /><div className={styles.skeletonLine} /></section>
