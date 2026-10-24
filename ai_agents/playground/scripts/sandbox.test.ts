@@ -1,4 +1,5 @@
 /** Run only from a disposable archive: real local metadata, fake E2B, no paid calls. */
+// @ts-ignore Bun supplies its test module at runtime; it is not an app dependency.
 import { test, expect, mock } from "bun:test";
 process.env.E2B_API_KEY = "synthetic-invalid-key";
 let creates = 0, kills = 0, shouldFailKill = false, failCreate = false;

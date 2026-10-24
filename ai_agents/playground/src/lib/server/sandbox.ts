@@ -7,7 +7,7 @@ const script = path.resolve(process.cwd(), "../agents/ten_packages/extension/ope
 export function state<T = Record<string, unknown>>(body: object): Promise<T> {
   return new Promise((resolve, reject) => {
     const child = spawn("python3", [script], {
-      env: { PATH: process.env.PATH, HOME: process.env.HOME },
+      env: { PATH: process.env.PATH, HOME: process.env.HOME, NODE_ENV: process.env.NODE_ENV },
       stdio: ["pipe", "pipe", "ignore"],
     });
     let output = "", settled = false;
