@@ -10,6 +10,7 @@
     }
   },
   "workspaceFolder": "/workspaces/ten-framework/ai_agents",
+  "postStartCommand": "bash ../.devcontainer/start-ten.sh",
   "forwardPorts": [
     3000,
     49483,
@@ -18,16 +19,24 @@
   ],
   "portsAttributes": {
     "3000": {
-      "label": "Agent Example UI"
+      "label": "Agent Example UI",
+      "visibility": "private",
+      "onAutoForward": "silent"
     },
     "49483": {
-      "label": "TMAN Designer"
+      "label": "TMAN Designer",
+      "visibility": "private",
+      "onAutoForward": "silent"
     },
     "8080": {
-      "label": "TEN API Server"
+      "label": "TEN API Server",
+      "visibility": "private",
+      "onAutoForward": "silent"
     },
     "49484": {
-      "label": "TEN Service Hub"
+      "label": "TEN Service Hub",
+      "visibility": "private",
+      "onAutoForward": "silent"
     }
   },
   "features": {
