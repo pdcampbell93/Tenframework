@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { cancelRun, executeApproved, prepare, sandboxStatus } from "@/lib/server/sandbox";
+import { isSameOriginRequest } from "@/lib/server/sameOrigin";
 import { SANDBOX_LIMITS } from "@/lib/sandboxTypes";
 
 export const runtime = "nodejs";
@@ -13,11 +14,7 @@ export async function GET() {
   catch { return respond({ error: "Sandbox safety status unavailable. Execution is disabled." }, 503); }
 }
 export async function POST(request: NextRequest) {
-  const host = (request.headers.get("x-forwarded-host") || request.headers.get("host") || "").split(",")[0].trim();
-  try {
-    if (!request.headers.get("origin") || new URL(request.headers.get("origin")!).host !== host || request.headers.get("sec-fetch-site") === "cross-site")
-      return respond({ error: "Same-origin request required." }, 403);
-  } catch { return respond({ error: "Invalid origin." }, 403); }
+  if (!isSameOriginRequest(request)) return respond({ error: "Same-origin request required." }, 403);
   if (!request.headers.get("content-type")?.startsWith("application/json")) return respond({ error: "JSON required." }, 415);
   try {
     if (!request.body) return respond({ error: "Request required." }, 400);

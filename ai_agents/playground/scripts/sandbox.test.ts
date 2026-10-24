@@ -1,6 +1,7 @@
 /** Run only from a disposable archive: real local metadata, fake E2B, no paid calls. */
 // @ts-ignore Bun supplies its test module at runtime; it is not an app dependency.
 import { test, expect, mock } from "bun:test";
+import { isSameOriginRequest } from "../src/lib/server/sameOrigin";
 process.env.E2B_API_KEY = "synthetic-invalid-key";
 let creates = 0, kills = 0, shouldFailKill = false, failCreate = false;
 let receivedOptions: Record<string, unknown>;
@@ -33,6 +34,43 @@ async function run() {
   const review = await prepare(code);
   return executeApproved({ ...review, code, acknowledgeCost: true });
 }
+
+test("same-origin guard handles normalized forwarded hosts and protocols", () => {
+  const proxied = new Request("http://upstream.internal/api/companion", {
+    method: "POST",
+    headers: {
+      origin: "https://ten-preview.example",
+      host: "upstream.internal",
+      "x-forwarded-host": "upstream.internal, ten-preview.example:443",
+      "x-forwarded-proto": "http, https",
+      "sec-fetch-site": "cross-site",
+    },
+  });
+  expect(isSameOriginRequest(proxied)).toBe(true);
+
+  const local = new Request("http://localhost:3000/api/companion", {
+    method: "POST",
+    headers: { origin: "http://localhost:3000", host: "localhost:3000" },
+  });
+  expect(isSameOriginRequest(local)).toBe(true);
+});
+
+test("same-origin guard rejects missing, malformed, and foreign origins", () => {
+  expect(isSameOriginRequest(new Request("https://ten-preview.example/api/companion"))).toBe(false);
+  expect(isSameOriginRequest(new Request("https://ten-preview.example/api/companion", {
+    method: "POST",
+    headers: { origin: "null", host: "ten-preview.example" },
+  }))).toBe(false);
+  expect(isSameOriginRequest(new Request("https://ten-preview.example/api/companion", {
+    method: "POST",
+    headers: {
+      origin: "https://attacker.example",
+      host: "ten-preview.example",
+      "x-forwarded-host": "ten-preview.example",
+      "x-forwarded-proto": "https",
+    },
+  }))).toBe(false);
+});
 
 test("real approval metadata and fake provider: successful run, exact fixed isolation", async () => {
   const result = await run();
@@ -112,5 +150,21 @@ test("HTTP boundary rejects cross-origin, absent approval and oversized JSON bef
   expect((await send(JSON.stringify({ action: "prepare", code }), "https://attacker.invalid")).status).toBe(403);
   expect((await send(JSON.stringify({ action: "run", code }), "http://localhost")).status).toBe(400);
   expect((await send("x".repeat(100001), "http://localhost")).status).toBe(413);
+  const proxied = new NextRequest("http://upstream.internal/api/sandbox", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      host: "upstream.internal",
+      "x-forwarded-host": "upstream.internal, ten-preview.example:443",
+      "x-forwarded-proto": "http, https",
+      origin: "https://ten-preview.example",
+      "sec-fetch-site": "cross-site",
+    },
+    body: JSON.stringify({ action: "prepare", code }),
+  });
+  const accepted = await POST(proxied);
+  expect(accepted.status).toBe(200);
+  const review = await accepted.json();
+  await cancelRun(review.id);
   expect(creates).toBe(before);
 });

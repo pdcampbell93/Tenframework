@@ -3,6 +3,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { type NextRequest, NextResponse } from "next/server";
 import { cancelActiveRun } from "@/lib/server/sandbox";
+import { isSameOriginRequest } from "@/lib/server/sameOrigin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,20 +41,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   // Codespaces' private port provides authentication. This is NOT safe to expose
   // publicly. Require same-origin browser mutations in addition to that boundary.
-  const origin = request.headers.get("origin");
-  const host = (
-    request.headers.get("x-forwarded-host") || request.headers.get("host") || ""
-  ).split(",")[0].trim();
-  try {
-    if (
-      !origin ||
-      new URL(origin).host !== host ||
-      request.headers.get("sec-fetch-site") === "cross-site"
-    ) {
-      return NextResponse.json({ error: "Same-origin request required." }, { status: 403 });
-    }
-  } catch {
-    return NextResponse.json({ error: "Invalid origin." }, { status: 403 });
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json({ error: "Same-origin request required." }, { status: 403 });
   }
   if (!request.headers.get("content-type")?.startsWith("application/json")) {
     return NextResponse.json({ error: "JSON required." }, { status: 415 });

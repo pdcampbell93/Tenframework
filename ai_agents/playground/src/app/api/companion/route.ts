@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { type NextRequest, NextResponse } from "next/server";
+import { isSameOriginRequest } from "@/lib/server/sameOrigin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,9 +54,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const origin = request.headers.get("origin");
-    const host = (request.headers.get("x-forwarded-host") || request.headers.get("host") || "").split(",")[0].trim();
-    if (!origin || new URL(origin).host !== host || request.headers.get("sec-fetch-site") === "cross-site") {
+    if (!isSameOriginRequest(request)) {
       return NextResponse.json({ error: "Same-origin request required." }, { status: 403 });
     }
     if (!request.headers.get("content-type")?.startsWith("application/json")) {
