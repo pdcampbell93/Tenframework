@@ -35,6 +35,8 @@ export class RtcManager extends AGEventEmitter<RtcEvents> {
 
   constructor() {
     super();
+    AgoraRTC.setLogLevel(4);
+    AgoraRTC.disableLogUpload();
     this._joined = false;
     this.localTracks = {};
     this.client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
@@ -62,7 +64,7 @@ export class RtcManager extends AGEventEmitter<RtcEvents> {
       const videoTrack = await AgoraRTC.createCameraVideoTrack();
       this.localTracks.videoTrack = videoTrack;
     } catch (err) {
-      console.error("Failed to create video track", err);
+      console.error("Failed to create video track (details omitted)");
     }
     this.emit("localTracksChanged", this.localTracks);
   }
@@ -72,7 +74,7 @@ export class RtcManager extends AGEventEmitter<RtcEvents> {
       const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
       this.localTracks.audioTrack = audioTrack;
     } catch (err) {
-      console.error("Failed to create audio track", err);
+      console.error("Failed to create audio track (details omitted)");
     }
     this.emit("localTracksChanged", this.localTracks);
   }
@@ -91,7 +93,7 @@ export class RtcManager extends AGEventEmitter<RtcEvents> {
       );
       this.localTracks.screenTrack = screenTrack;
     } catch (err) {
-      console.error("Failed to create screen track", err);
+      console.error("Failed to create screen track (details omitted)");
     }
     this.emit("localTracksChanged", this.localTracks);
   }
@@ -174,7 +176,6 @@ export class RtcManager extends AGEventEmitter<RtcEvents> {
   private _parseData(data: any): ITextItem | void {
     const ascii = String.fromCharCode(...new Uint8Array(data));
 
-    console.log("[test] textstream raw data", ascii);
 
     // const { stream_id, is_final, text, text_ts, data_type, message_id, part_number, total_parts } = textstream;
 
@@ -239,9 +240,6 @@ export class RtcManager extends AGEventEmitter<RtcEvents> {
         );
         const { stream_id, is_final, text, text_ts, data_type, role } =
           JSON.parse(this.base64ToUtf8(completeMessage));
-        console.log(
-          `[test] message_id: ${message_id} stream_id: ${stream_id}, text: ${text}, data_type: ${data_type}`
-        );
         const isAgent = role === "assistant";
         let textItem: IChatItem = {
           type: isAgent ? EMessageType.AGENT : EMessageType.USER,
@@ -267,12 +265,8 @@ export class RtcManager extends AGEventEmitter<RtcEvents> {
               text: data.text,
             };
           } else if (type === "action") {
-            const { action, data: actionData } = data;
-            if (action === "browse_website") {
-              console.log("Opening website", actionData.url);
-              window.open(actionData.url, "_blank");
-              return;
-            }
+            // Remote model packets cannot navigate, execute code, or open services.
+            return;
           }
         }
 
@@ -284,7 +278,7 @@ export class RtcManager extends AGEventEmitter<RtcEvents> {
         delete this.messageCache[message_id];
       }
     } catch (error) {
-      console.error("Error processing chunk:", error);
+      console.error("Error processing chunk (details omitted)");
     }
   }
 

@@ -4,6 +4,7 @@ import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { StoreProvider } from "@/store";
+import SessionSafety from "@/components/Voice/SessionSafety";
 
 import "./global.css";
 
@@ -21,8 +22,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   minimumScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
   viewportFit: "cover",
 };
 
@@ -50,7 +51,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <StoreProvider>{children}</StoreProvider>
+          <StoreProvider><SessionSafety>{children}</SessionSafety></StoreProvider>
           {/* </ConfigProvider> */}
           <Toaster richColors closeButton theme="dark" />
         </ThemeProvider>

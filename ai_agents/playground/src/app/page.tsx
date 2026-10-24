@@ -2,10 +2,12 @@
 
 import { IMicrophoneAudioTrack } from "agora-rtc-sdk-ng";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import React from "react";
 import { EMobileActiveTab, useAppSelector, useIsCompactLayout } from "@/common";
 import Avatar from "@/components/Agent/AvatarTrulience";
 import AuthInitializer from "@/components/authInitializer";
+import SpokenWorkspace from "@/components/Voice/SpokenWorkspace";
 import Action from "@/components/Layout/Action";
 import Header from "@/components/Layout/Header";
 import { cn } from "@/lib/utils";
@@ -49,9 +51,21 @@ export default function Home() {
   };
 
   return (
+    <SpokenWorkspace>
     <AuthInitializer>
       <div className="relative mx-auto flex min-h-screen flex-1 flex-col md:h-screen">
         <Header className="h-[60px]" />
+        <div className="flex flex-wrap justify-end gap-x-5 gap-y-2 px-4 py-2 text-sm">
+          <Link href="/companion" target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline underline-offset-4">
+            Chat, memory &amp; knowledge (new tab)
+          </Link>
+          <Link href="/simulation" target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline underline-offset-4">
+            Lightcraft simulation (new tab)
+          </Link>
+          <Link href="/security" target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline underline-offset-4">
+            Security controls &amp; tests (new tab)
+          </Link>
+        </div>
         <Action />
         <div
           className={cn(
@@ -95,5 +109,6 @@ export default function Home() {
         </div>
       </div>
     </AuthInitializer>
+    </SpokenWorkspace>
   );
 }

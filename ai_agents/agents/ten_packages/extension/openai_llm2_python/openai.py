@@ -6,10 +6,13 @@
 #
 #
 from collections import defaultdict
+import asyncio
+from contextlib import aclosing
 from dataclasses import dataclass, field
 from enum import Enum
 import json
 import random
+import uuid
 from typing import AsyncGenerator, List
 from pydantic import BaseModel
 import requests
@@ -32,6 +35,10 @@ from ten_ai_base.struct import (
 )
 from ten_ai_base.types import LLMToolMetadata
 from ten_runtime.async_ten_env import AsyncTenEnv
+from .security import SecurityGuard, BLOCK_MESSAGE, PAUSE_MESSAGE
+from .memory_store import MemoryStore, context_block
+from .knowledge import retrieve_knowledge
+from .companion_policy import COMPANION_POLICY, is_disengagement
 
 
 @dataclass
@@ -49,6 +56,8 @@ class OpenAILLM2Config(BaseModel):
     max_tokens: int = 4096
     seed: int = random.randint(0, 1000000)
     prompt: str = "You are a helpful assistant."
+    security_enabled: bool = False
+    companion_enabled: bool = False
     black_list_params: List[str] = field(
         default_factory=lambda: ["messages", "tools", "stream", "n", "model"]
     )
@@ -104,9 +113,10 @@ class OpenAIChatGPT:
     def __init__(self, ten_env: AsyncTenEnv, config: OpenAILLM2Config):
         self.config = config
         self.ten_env = ten_env
-        ten_env.log_info(
-            f"OpenAIChatGPT initialized with config: {config.api_key}"
-        )
+        ten_env.log_info("OpenAIChatGPT initialized (credentials omitted)")
+        self.guard = SecurityGuard() if config.security_enabled else None
+        if self.guard is not None:
+            self.guard.event("worker", "ready", "guard_initialized")
         self.client = AsyncOpenAI(
             api_key=config.api_key,
             base_url=config.base_url,
@@ -121,7 +131,7 @@ class OpenAIChatGPT:
                 "http": config.proxy_url,
                 "https": config.proxy_url,
             }
-            ten_env.log_info(f"Setting proxies: {proxies}")
+            ten_env.log_info("Using configured HTTP proxy")
             self.session.proxies.update(proxies)
         self.client.session = self.session
 
@@ -158,6 +168,157 @@ class OpenAIChatGPT:
         return json_dict
 
     async def get_chat_completions(
+        self, request_input: LLMRequest
+    ) -> AsyncGenerator[LLMResponse, None]:
+        if self.guard is None:
+            async for event in self._get_chat_completions(request_input):
+                yield event
+            return
+
+        rule = None
+        stage = "input"
+        try:
+            messages = list(request_input.messages)[-24:]
+            latest_user = next((m for m in reversed(messages)
+                if isinstance(m, LLMMessageContent) and m.role == "user"), None)
+            latest_text = "" if latest_user is None else (
+                latest_user.content if isinstance(latest_user.content, str) else
+                "\n".join(item.text for item in latest_user.content if isinstance(item, TextContent))
+            )
+            if is_disengagement(latest_text):
+                self.guard.disengage()
+            if self.guard.disengaged():
+                yield LLMResponseMessageDone(response_id=str(uuid.uuid4()), role="assistant", content="")
+                return
+            rule = self.guard.begin()
+            last_user = max(
+                (i for i, item in enumerate(messages)
+                 if isinstance(item, LLMMessageContent) and item.role == "user"),
+                default=-1,
+            )
+            for i, message in enumerate(messages):
+                if rule:
+                    break
+                text = None
+                if isinstance(message, LLMMessageContent):
+                    if message.role not in ("user", "assistant"):
+                        rule = "untrusted_role"
+                        break
+                    if message.role == "user":
+                        if isinstance(message.content, list) and any(
+                            isinstance(item, ImageContent) for item in message.content
+                        ):
+                            rule = "unsupported_image_input"
+                            break
+                        text = message.content if isinstance(message.content, str) else "\n".join(
+                            item.text for item in message.content if isinstance(item, TextContent)
+                        )
+                elif isinstance(message, LLMMessageFunctionCallOutput):
+                    text = str(message.output)
+                if text is not None:
+                    detected = self.guard.check_text(text)
+                    if detected and i < last_user:
+                        # Do not let a blocked historical turn poison every later request.
+                        if isinstance(message, LLMMessageContent):
+                            messages[i] = message.model_copy(update={"content": "[Earlier request withheld by security policy.]"})
+                        else:
+                            messages[i] = message.model_copy(update={"output": "[Tool output withheld by security policy.]"})
+                    elif detected:
+                        rule = detected
+            if not rule:
+                prompt = self.config.prompt + "\n" + COMPANION_POLICY
+                if getattr(self.config, "companion_enabled", False):
+                    query = next((
+                        message.content for message in reversed(messages)
+                        if isinstance(message, LLMMessageContent)
+                        and message.role == "user" and isinstance(message.content, str)
+                    ), "")
+                    references = retrieve_knowledge(query)
+                    try:
+                        notes = await asyncio.wait_for(
+                            MemoryStore().search(self.client, query), timeout=8
+                        )
+                        notes = [note for note in notes if not self.guard.check_text(note["text"])]
+                    except Exception:
+                        notes = []
+                        prompt += "\nPersonal memory recall is unavailable; do not claim to recall saved notes."
+                        self.ten_env.log_info("Personal memory recall unavailable (details omitted)")
+                    prompt += context_block(notes, references)
+                if self.guard.paused():
+                    self.guard.event("input", "blocked", "paused")
+                    response_id = str(uuid.uuid4())
+                    paused_text = "" if self.guard.disengaged() else PAUSE_MESSAGE
+                    if paused_text:
+                        yield LLMResponseMessageDelta(
+                            response_id=response_id, role="assistant",
+                            content=paused_text, delta=paused_text,
+                        )
+                    yield LLMResponseMessageDone(
+                        response_id=response_id, role="assistant", content=paused_text,
+                    )
+                    return
+                # User- or request-supplied prompts/parameters cannot override policy.
+                protected = request_input.model_copy(update={
+                    "messages": messages[-24:], "prompt": prompt,
+                    "tools": [], "parameters": {}, "streaming": True,
+                })
+                buffered = []
+                output_size = 0
+                stage = "output"
+                async with aclosing(self._get_chat_completions(protected)) as stream:
+                    async for event in stream:
+                        if self.guard.paused():
+                            rule = "paused"
+                            break
+                        if isinstance(event, LLMResponseToolCall):
+                            rule = self.guard.check_tool(event.name, event.arguments)
+                        if rule:
+                            break
+                        output_size += len(getattr(event, "delta", "") or "")
+                        if output_size > 32000 or len(buffered) >= 2048:
+                            rule = "output_limit"
+                            break
+                        buffered.append(event)
+                if not rule:
+                    # Scan complete output before releasing any text/audio or tools.
+                    text = "".join(
+                        event.delta or "" for event in buffered
+                        if isinstance(event, (LLMResponseMessageDelta, LLMResponseReasoningDelta))
+                    )
+                    rule = self.guard.check_text(text, "output")
+                    for event in buffered:
+                        content = getattr(event, "content", None)
+                        if content and not rule:
+                            rule = self.guard.check_text(content, "output")
+                if not rule and self.guard.paused():
+                    rule = "paused"
+                if not rule:
+                    self.guard.event("response", "allowed", "checks_passed")
+                    for event in buffered:
+                        if self.guard.paused():
+                            # Previously queued speech cannot be recalled.
+                            return
+                        yield event
+                    return
+            self.guard.event(stage, "blocked", rule)
+        except Exception:
+            # Do not expose model errors, prompts, credentials, or arguments.
+            rule = "guard_unavailable"
+            self.ten_env.log_error("Protected completion failed closed; details omitted")
+
+        response_id = str(uuid.uuid4())
+        text = PAUSE_MESSAGE if rule == "paused" else BLOCK_MESSAGE
+        if self.guard.disengaged():
+            text = ""
+        if text:
+            yield LLMResponseMessageDelta(
+                response_id=response_id, role="assistant", content=text, delta=text
+            )
+        yield LLMResponseMessageDone(
+            response_id=response_id, role="assistant", content=text
+        )
+
+    async def _get_chat_completions(
         self, request_input: LLMRequest
     ) -> AsyncGenerator[LLMResponse, None]:
         messages = request_input.messages
@@ -263,11 +424,11 @@ class OpenAIChatGPT:
         for key, value in (request_input.parameters or {}).items():
             # Check if it's a valid option and not in black list
             if not self.config.is_black_list_params(key):
-                self.ten_env.log_debug(f"set openai param: {key} = {value}")
                 req[key] = value
 
-        self.ten_env.log_info(f"Requesting chat completions with: {req}")
+        self.ten_env.log_info("Requesting chat completion (content omitted)")
 
+        response = None
         try:
             response: AsyncStream[ChatCompletionChunk] = (
                 await self.client.chat.completions.create(**req)
@@ -290,14 +451,12 @@ class OpenAIChatGPT:
             last_chat_completion: ChatCompletionChunk | None = None
 
             async for chat_completion in response:
-                self.ten_env.log_debug(f"Chat completion: {chat_completion}")
                 if chat_completion is None or len(chat_completion.choices) == 0:
                     continue
                 last_chat_completion = chat_completion
                 choice = chat_completion.choices[0]
                 delta = choice.delta
 
-                self.ten_env.log_debug(f"Processing choice: {choice}")
 
                 content = delta.content if delta and delta.content else ""
                 reasoning_content = (
@@ -326,9 +485,6 @@ class OpenAIChatGPT:
                         think_state_changed = parser.process(content)
 
                     if not think_state_changed:
-                        self.ten_env.log_debug(
-                            f"state: {parser.state}, content: {content}, think: {parser.think_content}"
-                        )
                         if parser.state == "THINK":
                             yield LLMResponseReasoningDelta(
                                 response_id=chat_completion.id,
@@ -360,7 +516,6 @@ class OpenAIChatGPT:
                 if delta.tool_calls:
                     try:
                         for tool_call in delta.tool_calls:
-                            self.ten_env.log_info(f"Tool call: {tool_call}")
                             if tool_call.index not in tool_calls_dict:
                                 tool_calls_dict[tool_call.index] = {
                                     "id": None,
@@ -391,11 +546,8 @@ class OpenAIChatGPT:
                                     "type"
                                 ] = tool_call.type
                     except Exception as e:
-                        import traceback
-
-                        traceback.print_exc()
                         self.ten_env.log_error(
-                            f"Error processing tool call: {e} {tool_calls_dict}"
+                            "Error processing tool call (details omitted)"
                         )
 
             if last_chat_completion is None:
@@ -409,9 +561,6 @@ class OpenAIChatGPT:
             if tool_calls_list:
                 for tool_call in tool_calls_list:
                     arguements = json.loads(tool_call["function"]["arguments"])
-                    self.ten_env.log_info(
-                        f"Tool call22: {choice.delta.model_dump_json()}"
-                    )
                     yield LLMResponseToolCall(
                         response_id=last_chat_completion.id,
                         id=last_chat_completion.id,
@@ -429,4 +578,7 @@ class OpenAIChatGPT:
                 created=last_chat_completion.created,
             )
         except Exception as e:
-            raise RuntimeError(f"CreateChatCompletion failed, err: {e}") from e
+            raise RuntimeError("Chat completion failed; details omitted") from None
+        finally:
+            if response is not None:
+                await response.close()

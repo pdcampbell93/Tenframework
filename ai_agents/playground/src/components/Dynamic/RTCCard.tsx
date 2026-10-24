@@ -45,6 +45,7 @@ export default function RTCCard(props: { className?: string }) {
   const [audioTrack, setAudioTrack] = React.useState<IMicrophoneAudioTrack>();
   const [screenTrack, setScreenTrack] = React.useState<ILocalVideoTrack>();
   const [remoteuser, setRemoteUser] = React.useState<IRtcUser>();
+  const [connectionError, setConnectionError] = React.useState("");
   const [videoSourceType, setVideoSourceType] = React.useState<VideoSourceType>(
     VideoSourceType.CAMERA
   );
@@ -65,7 +66,11 @@ export default function RTCCard(props: { className?: string }) {
       return;
     }
 
-    init();
+    setConnectionError("");
+    void init().catch(async () => {
+      setConnectionError("TEN voice could not connect. Check Agora credentials and microphone permissions, then reload. Spoken commands remain unavailable until voice connects.");
+      await destory().catch(() => {});
+    });
 
     return () => {
       if (hasInit) {
@@ -131,7 +136,6 @@ export default function RTCCard(props: { className?: string }) {
   };
 
   const onTextChanged = (text: IChatItem) => {
-    console.log("[rtc] onTextChanged", text);
     dispatch(addChatItem(text));
   };
 
@@ -146,6 +150,7 @@ export default function RTCCard(props: { className?: string }) {
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", className)}>
+      {connectionError && <p role="alert" className="rounded border border-amber-500 p-3 text-sm text-amber-200">{connectionError}</p>}
       {/* Top region (Avatar or ChatCard) */}
       <div className="z-10 min-h-0 flex-1 overflow-y-auto" style={{ minHeight: '240px' }}>
         {useTrulienceAvatar ? (
