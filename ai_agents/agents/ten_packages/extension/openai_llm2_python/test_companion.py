@@ -239,6 +239,24 @@ class CompanionTests(unittest.IsolatedAsyncioTestCase):
         self.client.embeddings.create = deleting
         self.assertEqual(await self.store.search(self.client, "game"), [])
 
+    def test_provider_errors_are_classified_without_serializing_error_text(self):
+        class AuthenticationError(Exception):
+            pass
+
+        class RateLimitError(Exception):
+            pass
+
+        secret = "SYNTHETIC_SECRET_123456789"
+        auth = companion.safe_failure(AuthenticationError(secret))
+        limit = companion.safe_failure(RateLimitError(secret))
+        unknown = companion.safe_failure(RuntimeError(secret))
+
+        self.assertEqual(auth["code"], "provider_auth")
+        self.assertEqual(limit["code"], "usage_limit")
+        self.assertEqual(unknown["code"], "companion_error")
+        for payload in (auth, limit, unknown):
+            self.assertNotIn(secret, json.dumps(payload))
+
 
 if __name__ == "__main__":
     unittest.main()

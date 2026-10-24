@@ -21,6 +21,54 @@ from openai import AsyncOpenAI
 RECENT_LIMIT = 24
 
 
+def safe_failure(error):
+    """Return a useful error category without serializing provider text or input."""
+    error_type = type(error).__name__
+    messages = {
+        "AuthenticationError": (
+            "provider_auth",
+            "OpenAI rejected the API credential configured for TEN. Check the Codespaces secret; do not share the key here.",
+        ),
+        "PermissionDeniedError": (
+            "model_access",
+            "The OpenAI API account cannot access the selected model. Check model access in the API account.",
+        ),
+        "NotFoundError": (
+            "model_not_found",
+            "The selected OpenAI model was not found for this API account. Check the configured model name and access.",
+        ),
+        "RateLimitError": (
+            "usage_limit",
+            "OpenAI reports a usage or rate limit. Check API billing and limits.",
+        ),
+        "APIConnectionError": (
+            "provider_connection",
+            "TEN could not reach OpenAI. Check the Codespace network connection and retry.",
+        ),
+        "APITimeoutError": (
+            "provider_timeout",
+            "The OpenAI request timed out. Try again later.",
+        ),
+        "InternalServerError": (
+            "provider_unavailable",
+            "OpenAI is temporarily unavailable. Try again later.",
+        ),
+        "BadRequestError": (
+            "provider_request",
+            "OpenAI rejected the request. Check the configured model and request limits.",
+        ),
+        "OpenAIError": (
+            "provider_configuration",
+            "OpenAI configuration is incomplete. Check the API credential and selected model in Codespaces.",
+        ),
+    }
+    code, message = messages.get(
+        error_type,
+        ("companion_error", "TEN could not complete the request. Check the API/model configuration and retry."),
+    )
+    return {"code": code, "error": message}
+
+
 def memory_page(store, offset=0):
     count = store.count()
     if type(offset) is not int or offset < 0 or offset > MAX_MEMORIES or offset % MEMORY_PAGE_SIZE:
@@ -183,9 +231,9 @@ async def main():
     except ValueError as error:
         print(json.dumps({"error": str(error)}))
         raise SystemExit(2)
-    except Exception:
+    except Exception as error:
         # Provider exceptions can contain credentials or input; never serialize them.
-        print(json.dumps({"error": "Companion service unavailable. Check account access or try again; no draft was saved."}))
+        print(json.dumps(safe_failure(error)))
         raise SystemExit(3)
 
 
