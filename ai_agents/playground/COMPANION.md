@@ -18,9 +18,11 @@ Voice transcripts are not imported into text chat or draft summaries.
 Approved text is sent to OpenAI's `text-embedding-3-small` (512 dimensions)
 and stored with its real vector in a separate SQLite database under
 `ai_agents/.ten-memory/`, which is Git-ignored and private to the Codespace.
-Cosine similarity retrieves up to four related notes. This is a small personal
-vector store, not an external managed vector database. It supports up to 500
-notes, each up to 2000 characters. Recent context and retrieval are bounded.
+Cosine similarity retrieves up to eight related notes. This is a personal
+SQLite vector store, not an external managed vector database. It supports up
+to 2,000 notes, each up to 2,000 characters; the browser lists 100 notes per
+page. The memory library can be exported on request. Recent context and
+retrieval are bounded.
 
 Storage is **not encrypted at rest by this application**. Keep Codespaces
 ports private, restrict repository/Codespace access, and do not save secrets.

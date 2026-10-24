@@ -6,7 +6,10 @@ from pathlib import Path
 import sys
 
 from knowledge import REFERENCES, retrieve_knowledge
-from memory_store import MemoryStore, EMBEDDING_MODEL, context_block
+from memory_store import (
+    MemoryStore, EMBEDDING_MODEL, MAX_MEMORIES, RECALL_LIMIT,
+    MEMORY_PAGE_SIZE, context_block,
+)
 from security import SecurityGuard, BLOCK_MESSAGE, PAUSE_MESSAGE
 from companion_policy import COMPANION_POLICY, is_disengagement
 
@@ -16,6 +19,20 @@ sys.path = [entry for entry in sys.path if Path(entry or ".").resolve() != HERE]
 from openai import AsyncOpenAI
 
 RECENT_LIMIT = 24
+
+
+def memory_page(store, offset=0):
+    count = store.count()
+    if type(offset) is not int or offset < 0 or offset > MAX_MEMORIES or offset % MEMORY_PAGE_SIZE:
+        raise ValueError("Invalid memory page.")
+    last_offset = ((count - 1) // MEMORY_PAGE_SIZE) * MEMORY_PAGE_SIZE if count else 0
+    offset = min(offset, last_offset)
+    return {
+        "memories": store.list(limit=MEMORY_PAGE_SIZE, offset=offset),
+        "memory_count": count,
+        "memory_offset": offset,
+        "memory_page_size": MEMORY_PAGE_SIZE,
+    }
 
 
 def validate_messages(value):
@@ -48,19 +65,31 @@ async def handle(body, client=None, store=None, guard=None):
     action = body.get("action", "status")
     if action == "status":
         return {
-            "memories": store.list(), "knowledge": REFERENCES,
+            **memory_page(store),
+            "knowledge": REFERENCES,
             "privacy": {
                 "approval_required": True, "embedding_model": EMBEDDING_MODEL,
                 "storage": "Private Codespace SQLite; not encrypted at rest",
                 "recent_limit": RECENT_LIMIT,
+                "memory_limit": MAX_MEMORIES, "recall_limit": RECALL_LIMIT,
             },
+        }
+    if action == "list":
+        return memory_page(store, body.get("offset", 0))
+    if action == "export":
+        return {
+            "memories": store.list(limit=MAX_MEMORIES),
+            "memory_count": store.count(),
         }
     if action == "delete":
         memory_id = body.get("id")
         if type(memory_id) is not int or memory_id < 1:
             raise ValueError("Invalid memory ID.")
+        offset = body.get("offset", 0)
+        if type(offset) is not int or offset < 0 or offset > MAX_MEMORIES or offset % MEMORY_PAGE_SIZE:
+            raise ValueError("Invalid memory page.")
         store.delete(memory_id)
-        return {"memories": store.list()}
+        return memory_page(store, offset)
     if action not in ("chat", "summary", "save", "search"):
         raise ValueError("Unknown companion action.")
 
@@ -78,7 +107,7 @@ async def handle(body, client=None, store=None, guard=None):
         client = client or AsyncOpenAI(timeout=35, max_retries=0)
         if action == "save":
             memory = await store.save(client, text, approved=True, memory_id=memory_id)
-            return {"memory": memory, "memories": store.list()}
+            return {"memory": memory, **memory_page(store)}
         return {"matches": await store.search(client, text)}
 
     messages = validate_messages(body.get("messages"))

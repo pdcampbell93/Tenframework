@@ -25,11 +25,12 @@ async function run(body: object) {
         stdio: ["pipe", "pipe", "ignore"],
       });
       let output = "";
+      const maxOutputChars = (body as { action?: string }).action === "export" ? 20_000_000 : 2_000_000;
       const timer = setTimeout(() => { child.kill("SIGKILL"); reject(new Error("Timeout")); }, 75_000);
       child.stdout.setEncoding("utf8");
       child.stdout.on("data", (chunk: string) => {
         output += chunk;
-        if (output.length > 2_000_000) child.kill("SIGKILL");
+        if (output.length > maxOutputChars) child.kill("SIGKILL");
       });
       child.on("error", () => { clearTimeout(timer); reject(new Error("Companion unavailable")); });
       child.on("close", code => { clearTimeout(timer); resolve({ code, output }); });

@@ -9,6 +9,9 @@ import time
 
 EMBEDDING_MODEL = "text-embedding-3-small"
 DIMENSIONS = 512
+MAX_MEMORIES = 2000
+RECALL_LIMIT = 8
+MEMORY_PAGE_SIZE = 100
 DEFAULT_DIRECTORY = Path(__file__).resolve().parents[4] / ".ten-memory"
 
 
@@ -33,9 +36,20 @@ class MemoryStore:
         finally:
             db.close()
 
-    def list(self):
+    def count(self):
         with self.connect() as db:
-            rows = db.execute("SELECT id,text,created,updated FROM memories ORDER BY updated DESC").fetchall()
+            return db.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
+
+    def list(self, limit=MEMORY_PAGE_SIZE, offset=0):
+        if type(limit) is not int or not 1 <= limit <= MAX_MEMORIES:
+            raise ValueError("Invalid memory page size.")
+        if type(offset) is not int or not 0 <= offset <= MAX_MEMORIES:
+            raise ValueError("Invalid memory page offset.")
+        with self.connect() as db:
+            rows = db.execute(
+                "SELECT id,text,created,updated FROM memories ORDER BY updated DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ).fetchall()
         return [dict(zip(("id", "text", "created", "updated"), row)) for row in rows]
 
     @staticmethod
@@ -62,15 +76,21 @@ class MemoryStore:
         text = text.strip()
         if not text or len(text) > 2000:
             raise ValueError("Memory must contain 1–2000 characters.")
-        existing = self.list()
-        if memory_id is not None and not any(item["id"] == memory_id for item in existing):
-            raise ValueError("Memory not found.")
-        if memory_id is None and len(existing) >= 500:
+        if memory_id is not None:
+            with self.connect() as db:
+                exists = db.execute("SELECT 1 FROM memories WHERE id=?", (memory_id,)).fetchone()
+            if not exists:
+                raise ValueError("Memory not found.")
+        if memory_id is None and self.count() >= MAX_MEMORIES:
             raise ValueError("Memory limit reached. Remove an old memory first.")
         vector = await self.embed(client, text)
         now = time.time()
         with self.connect() as db:
+            # Recheck atomically after embedding so simultaneous saves cannot exceed the cap.
+            db.execute("BEGIN IMMEDIATE")
             if memory_id is None:
+                if db.execute("SELECT COUNT(*) FROM memories").fetchone()[0] >= MAX_MEMORIES:
+                    raise ValueError("Memory limit reached. Remove an old memory first.")
                 memory_id = db.execute(
                     "INSERT INTO memories(text,vector,model,created,updated) VALUES(?,?,?,?,?)",
                     (text, json.dumps(vector), EMBEDDING_MODEL, now, now),
@@ -82,7 +102,8 @@ class MemoryStore:
                 )
                 if cursor.rowcount != 1:
                     raise ValueError("Memory was deleted while saving.")
-        return next(item for item in self.list() if item["id"] == memory_id)
+            row = db.execute("SELECT id,text,created,updated FROM memories WHERE id=?", (memory_id,)).fetchone()
+        return dict(zip(("id", "text", "created", "updated"), row))
 
     def delete(self, memory_id):
         with self.connect() as db:
@@ -90,8 +111,10 @@ class MemoryStore:
             if cursor.rowcount != 1:
                 raise ValueError("Memory not found.")
 
-    async def search(self, client, query, limit=4):
-        if not self.list():
+    async def search(self, client, query, limit=RECALL_LIMIT):
+        if type(limit) is not int or not 1 <= limit <= 16:
+            raise ValueError("Invalid memory recall limit.")
+        if not self.count():
             return []
         vector = await self.embed(client, query[:3000])
         # Re-read after embedding so a deletion during the network call is respected.
@@ -114,7 +137,8 @@ def context_block(memories, references):
     # Notes are quoted data, never new instructions or an authoritative diagnosis.
     return (
         "\n\nCOMPANION CAPABILITIES: In this build, use the most recent 24 messages "
-        "plus the approved notes below for continuity. Only explicitly reviewed "
+        "plus up to eight semantically related approved notes below for continuity. "
+        "Only explicitly reviewed "
         "and saved notes persist across sessions; chat transcripts and summary drafts "
         "are not automatically saved as personal memory. Do not promise perfect recall. "
         "Support quantum engineering, quantum mechanics, entanglement, and binary "
