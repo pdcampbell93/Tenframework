@@ -1,17 +1,17 @@
 /**
- * Validate browser mutations using the origin plus the host/protocol seen at
- * ingress. Reverse proxies can normalize default ports or report both the
- * public and upstream host, so compare parsed origins rather than raw strings.
+ * Validate browser mutations using the browser Origin and ingress hosts.
+ * Reverse proxies can terminate TLS, normalize default ports, or report both
+ * the public and upstream host, so compare parsed authorities, not raw strings.
  */
 export function isSameOriginRequest(request: Request): boolean {
   const originHeader = request.headers.get("origin");
   if (!originHeader) return false;
 
   let origin: URL;
-  let requestProtocol: string;
+  let requestUrl: URL;
   try {
     origin = new URL(originHeader);
-    requestProtocol = new URL(request.url).protocol;
+    requestUrl = new URL(request.url);
   } catch {
     return false;
   }
@@ -35,35 +35,27 @@ export function isSameOriginRequest(request: Request): boolean {
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
-  const hosts = [...forwardedHosts, ...directHosts];
+  const hosts = [...forwardedHosts, ...directHosts, requestUrl.host];
   if (!hosts.length) return false;
 
-  const forwardedProtocols = (request.headers.get("x-forwarded-proto") ?? "")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter((value) => value === "http" || value === "https")
-    .map((value) => `${value}:`);
-  const protocols = [...new Set([...forwardedProtocols, requestProtocol])].filter(
-    (value) => value === "http:" || value === "https:"
-  );
-
-  for (const protocol of protocols) {
-    for (const host of hosts) {
-      try {
-        const candidate = new URL(`${protocol}//${host}`);
-        if (
-          candidate.pathname === "/" &&
-          candidate.search === "" &&
-          candidate.hash === "" &&
-          candidate.username === "" &&
-          candidate.password === "" &&
-          candidate.origin === origin.origin
-        ) {
-          return true;
-        }
-      } catch {
-        // Ignore malformed proxy entries and check the remaining trusted host.
+  // Compare host and port using the browser Origin's scheme. TLS may terminate
+  // at the Codespaces proxy, so the app can see an internal HTTP scheme even
+  // though the browser is on HTTPS; the Origin's host must still match exactly.
+  for (const host of hosts) {
+    try {
+      const candidate = new URL(`${origin.protocol}//${host}`);
+      if (
+        candidate.pathname === "/" &&
+        candidate.search === "" &&
+        candidate.hash === "" &&
+        candidate.username === "" &&
+        candidate.password === "" &&
+        candidate.host === origin.host
+      ) {
+        return true;
       }
+    } catch {
+      // Ignore malformed proxy entries and check the remaining trusted host.
     }
   }
 

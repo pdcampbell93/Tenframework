@@ -55,6 +55,18 @@ test("same-origin guard handles normalized forwarded hosts and protocols", () =>
   expect(isSameOriginRequest(local)).toBe(true);
 });
 
+test("same-origin guard works when the proxy omits its forwarded protocol", () => {
+  const tlsTerminated = new Request("http://upstream.internal/api/companion", {
+    method: "POST",
+    headers: {
+      origin: "https://ten-preview.example",
+      host: "upstream.internal",
+      "x-forwarded-host": "upstream.internal, ten-preview.example:443",
+    },
+  });
+  expect(isSameOriginRequest(tlsTerminated)).toBe(true);
+});
+
 test("same-origin guard rejects missing, malformed, and foreign origins", () => {
   expect(isSameOriginRequest(new Request("https://ten-preview.example/api/companion"))).toBe(false);
   expect(isSameOriginRequest(new Request("https://ten-preview.example/api/companion", {
@@ -156,7 +168,6 @@ test("HTTP boundary rejects cross-origin, absent approval and oversized JSON bef
       "content-type": "application/json",
       host: "upstream.internal",
       "x-forwarded-host": "upstream.internal, ten-preview.example:443",
-      "x-forwarded-proto": "http, https",
       origin: "https://ten-preview.example",
       "sec-fetch-site": "cross-site",
     },
