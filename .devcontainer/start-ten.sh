@@ -57,11 +57,24 @@ start_service() {
 
   if [[ ! "$pid" =~ ^[0-9]+$ ]] || ! kill -0 "$pid" 2>/dev/null; then
     rm -f "$pid_file"
-    (
-      cd -- "$VOICE_DIR"
-      nohup task --silent "$task_name" >> "$log_file" 2>&1 </dev/null &
-      printf '%s\n' "$!" > "$pid_file"
+    python3 - "$VOICE_DIR" "$task_name" "$log_file" "$pid_file" <<'PY'
+import subprocess
+import sys
+
+voice_dir, task_name, log_file, pid_file = sys.argv[1:]
+with open(log_file, "ab", buffering=0) as log:
+    process = subprocess.Popen(
+        ["task", "--silent", task_name],
+        cwd=voice_dir,
+        stdin=subprocess.DEVNULL,
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+        close_fds=True,
     )
+with open(pid_file, "w", encoding="ascii") as pid:
+    pid.write(f"{process.pid}\n")
+PY
   fi
 }
 
