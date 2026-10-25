@@ -10,7 +10,7 @@
     }
   },
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}/ai_agents",
-  "postStartCommand": "bash ../.devcontainer/start-ten-services.sh",
+  "postStartCommand": "bash /workspaces/Tenframework/.devcontainer/start-ten-services.sh",
   "forwardPorts": [
     3000,
     49483,
