@@ -1,18 +1,24 @@
 #!/usr/bin/env bash
+set -Eeuo pipefail
 
 # Set default pip install command
-PIP_INSTALL_CMD=${PIP_INSTALL_CMD:-"uv pip install --system"}
+PIP_INSTALL_CMD="${PIP_INSTALL_CMD:-uv pip install --system}"
+read -r -a PIP_INSTALL_ARGS <<< "$PIP_INSTALL_CMD"
+
+if [[ ${#PIP_INSTALL_ARGS[@]} -eq 0 ]] || ! command -v "${PIP_INSTALL_ARGS[0]}" >/dev/null 2>&1; then
+  echo "Python dependency installer is unavailable." >&2
+  exit 1
+fi
 
 install_python_requirements() {
   local app_dir=$1
 
   echo "Starting Python dependencies installation..."
 
-
   # Install Twilio server Python dependencies
   if [[ -f "$app_dir/../server/requirements.txt" ]]; then
     echo "Installing Twilio server Python dependencies..."
-    ${PIP_INSTALL_CMD} -r "$app_dir/../server/requirements.txt"
+    "${PIP_INSTALL_ARGS[@]}" -r "$app_dir/../server/requirements.txt"
   else
     echo "No requirements.txt found in server directory: $app_dir/../server"
   fi
@@ -23,7 +29,7 @@ install_python_requirements() {
     for extension in "$app_dir/ten_packages/extension"/*; do
       if [[ -d "$extension" && -f "$extension/requirements.txt" ]]; then
         echo "Found requirements.txt in $extension, installing dependencies..."
-        ${PIP_INSTALL_CMD} -r "$extension/requirements.txt"
+        "${PIP_INSTALL_ARGS[@]}" -r "$extension/requirements.txt"
       fi
     done
   else
@@ -36,7 +42,7 @@ install_python_requirements() {
     for extension in "$app_dir/ten_packages/system"/*; do
       if [[ -d "$extension" && -f "$extension/requirements.txt" ]]; then
         echo "Found requirements.txt in $extension, installing dependencies..."
-        ${PIP_INSTALL_CMD} -r "$extension/requirements.txt"
+        "${PIP_INSTALL_ARGS[@]}" -r "$extension/requirements.txt"
       fi
     done
   else
@@ -48,24 +54,19 @@ install_python_requirements() {
 
 build_go_app() {
   local app_dir=$1
-  cd $app_dir
+  cd -- "$app_dir"
 
   go run "$app_dir/ten_packages/system/ten_runtime_go/tools/build/main.go" --verbose
-  if [[ $? -ne 0 ]]; then
-    echo "FATAL: failed to build go app, see logs for detail."
-    exit 1
-  fi
 }
 
 main() {
   # Get the parent directory of script location as app root directory
   APP_HOME=$(
-    cd $(dirname $0)/..
+    cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
     pwd
   )
 
   echo "App root directory: $APP_HOME"
-  echo "Using pip command: $PIP_INSTALL_CMD"
 
   # Check if manifest.json exists
   if [[ ! -f "$APP_HOME/manifest.json" ]]; then

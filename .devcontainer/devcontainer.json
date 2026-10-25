@@ -10,6 +10,8 @@
     }
   },
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}/ai_agents",
+  "postCreateCommand": "bash ../.devcontainer/start-ten.sh install",
+  "postStartCommand": "bash ../.devcontainer/start-ten.sh start",
   "forwardPorts": [
     3000,
     49483,
