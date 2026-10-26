@@ -77,7 +77,7 @@ class DeepgramASRExtension(AsyncASRBaseExtension):
             self.config = DeepgramASRConfig.model_validate_json(config_json)
             self.config.update(self.config.params)
             ten_env.log_info(
-                f"KEYPOINT vendor_config: {self.config.to_json(sensitive_handling=True)}",
+                "KEYPOINT vendor_config loaded (values omitted)",
                 category=LOG_CATEGORY_KEY_POINT,
             )
 
@@ -87,13 +87,13 @@ class DeepgramASRExtension(AsyncASRBaseExtension):
                 )
                 self.audio_dumper = Dumper(dump_file_path)
         except Exception as e:
-            ten_env.log_error(f"invalid property: {e}")
+            ten_env.log_error(f"invalid property: {type(e).__name__}")
             self.config = DeepgramASRConfig.model_validate_json("{}")
             await self.send_asr_error(
                 ModuleError(
                     module=MODULE_NAME_ASR,
                     code=ModuleErrorCode.FATAL_ERROR.value,
-                    message=str(e),
+                    message=f"Invalid ASR configuration: {type(e).__name__}",
                 ),
             )
 
@@ -125,7 +125,7 @@ class DeepgramASRExtension(AsyncASRBaseExtension):
                     if len(tokens) == 2 and tokens[1].isdigit():
                         keywords.append(":".join(tokens))  # replase to ":"
                     else:
-                        self.ten_env.log_warn("invalid hotword format: " + hw)
+                        self.ten_env.log_warn("invalid hotword format (value omitted)")
 
             options = LiveOptions(
                 language=self.config.language,
@@ -136,9 +136,6 @@ class DeepgramASRExtension(AsyncASRBaseExtension):
                 interim_results=self.config.interim_results,
                 punctuate=self.config.punctuate,
                 keywords=keywords,
-                extra=(
-                    {"mid_opt_out": "true"} if self.config.mid_opt_out else None
-                ),
             )
 
             # Update options with advanced params
@@ -152,16 +149,22 @@ class DeepgramASRExtension(AsyncASRBaseExtension):
                             options, key
                         ) and not self.config.is_black_list_params(key):
                             self.ten_env.log_debug(
-                                f"set deepgram param: {key} = {value}"
+                                "Setting advanced Deepgram parameter (values omitted)"
                             )
                             setattr(options, key, value)
                 except Exception as e:
-                    self.ten_env.log_error(f"set deepgram param failed: {e}")
+                    self.ten_env.log_error(f"set deepgram param failed: {type(e).__name__}")
 
-            self.ten_env.log_info(f"deepgram options: {options}")
+            self.ten_env.log_info("Deepgram options prepared (values omitted)")
 
             # Connect to websocket
-            result = await self.client.start(options)
+            # The historical local field is named mid_opt_out. The provider's
+            # query flag is mip_opt_out, sent via this SDK's addons argument
+            # (LiveOptions.extra is for custom metadata, not query controls).
+            result = await self.client.start(
+                options,
+                addons={"mip_opt_out": "true"} if self.config.mid_opt_out else None,
+            )
             if not result:
                 self.ten_env.log_error("failed to connect to deepgram")
                 await self.send_asr_error(
@@ -177,13 +180,13 @@ class DeepgramASRExtension(AsyncASRBaseExtension):
 
         except Exception as e:
             self.ten_env.log_error(
-                f"KEYPOINT start_connection failed: invalid vendor config: {e}"
+                f"KEYPOINT start_connection failed: {type(e).__name__}"
             )
             await self.send_asr_error(
                 ModuleError(
                     module=MODULE_NAME_ASR,
                     code=ModuleErrorCode.FATAL_ERROR.value,
-                    message=str(e),
+                    message=f"ASR connection failed: {type(e).__name__}",
                 ),
             )
 
@@ -242,7 +245,7 @@ class DeepgramASRExtension(AsyncASRBaseExtension):
     async def _deepgram_event_handler_on_open(self, _, event):
         """Handle the open event from Deepgram."""
         self.ten_env.log_info(
-            f"vendor_status_changed: on_open event: {event}",
+            "vendor_status_changed: on_open",
             category=LOG_CATEGORY_VENDOR,
         )
         self.sent_user_audio_duration_ms_before_last_reset += (
@@ -258,7 +261,7 @@ class DeepgramASRExtension(AsyncASRBaseExtension):
     async def _deepgram_event_handler_on_close(self, *args, **kwargs):
         """Handle the close event from Deepgram."""
         self.ten_env.log_info(
-            f"vendor_status_changed: on_close, args: {args}, kwargs: {kwargs}",
+            "vendor_status_changed: on_close",
             category=LOG_CATEGORY_VENDOR,
         )
         self.connected = False
@@ -272,19 +275,6 @@ class DeepgramASRExtension(AsyncASRBaseExtension):
     async def _deepgram_event_handler_on_transcript(self, _, result):
         """Handle the transcript event from Deepgram."""
         assert self.config is not None
-
-        # SimpleNamespace
-        try:
-            result_json = result.to_json()
-            self.ten_env.log_debug(
-                f"vendor_result: on_transcript: {result_json}",
-                category=LOG_CATEGORY_VENDOR,
-            )
-        except AttributeError:
-            # SimpleNamespace no have to_json
-            self.ten_env.log_error(
-                "deepgram event callback on_transcript: SimpleNamespace object (no to_json method)"
-            )
 
         try:
             sentence = result.channel.alternatives[0].transcript
@@ -306,7 +296,7 @@ class DeepgramASRExtension(AsyncASRBaseExtension):
             language = self.config.language
 
             self.ten_env.log_debug(
-                f"deepgram event callback on_transcript: {sentence}, language: {language}, is_final: {is_final}"
+                f"deepgram transcript received: chars={len(sentence)}, is_final={bool(is_final)}"
             )
 
             await self._handle_asr_result(
@@ -318,12 +308,24 @@ class DeepgramASRExtension(AsyncASRBaseExtension):
             )
 
         except Exception as e:
-            self.ten_env.log_error(f"Error processing transcript: {e}")
+            self.ten_env.log_error(f"Error processing transcript: {type(e).__name__}")
 
     async def _deepgram_event_handler_on_error(self, _, error):
         """Handle the error event from Deepgram."""
+        # Provider error text may echo audio transcripts, headers, or config.
+        # Retain only numeric codes, never error.to_json() or error.message.
+        raw_code = getattr(error, "code", None)
+        known_codes = {
+            "INVALID_AUTH", "INSUFFICIENT_PERMISSIONS", "TOO_MANY_REQUESTS",
+            "INVALID_QUERY_PARAMETER", "INVALID_JSON", "NET-0000", "NET-0001",
+        }
+        code = (
+            str(raw_code) if type(raw_code) is int
+            else raw_code if type(raw_code) is str and raw_code in known_codes
+            else "unknown"
+        )
         self.ten_env.log_error(
-            f"vendor_error: {error.to_json()}",
+            f"Deepgram vendor_error: code={code}",
             category=LOG_CATEGORY_VENDOR,
         )
 
@@ -331,16 +333,12 @@ class DeepgramASRExtension(AsyncASRBaseExtension):
             ModuleError(
                 module=MODULE_NAME_ASR,
                 code=ModuleErrorCode.NON_FATAL_ERROR.value,
-                message=error.to_json(),
+                message=f"Deepgram ASR error: code={code}",
             ),
             ModuleErrorVendorInfo(
                 vendor=self.vendor(),
-                code=str(error.code) if hasattr(error, "code") else "unknown",
-                message=(
-                    error.message
-                    if hasattr(error, "message")
-                    else error.to_json()
-                ),
+                code=code,
+                message="Deepgram ASR provider error (details omitted)",
             ),
         )
 
@@ -418,7 +416,7 @@ class DeepgramASRExtension(AsyncASRBaseExtension):
                 self.connected = False
                 self.ten_env.log_info("deepgram connection stopped")
         except Exception as e:
-            self.ten_env.log_error(f"Error stopping deepgram connection: {e}")
+            self.ten_env.log_error(f"Error stopping deepgram connection: {type(e).__name__}")
 
     @override
     def is_connected(self) -> bool:

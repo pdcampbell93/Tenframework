@@ -29,6 +29,8 @@
               "addon": "deepgram_asr_python",
               "extension_group": "stt",
               "property": {
+                "dump": false,
+                "mid_opt_out": true,
                 "params": {
                   "api_key": "${env:DEEPGRAM_API_KEY}",
                   "language": "en-US",
@@ -193,7 +195,7 @@
         {
           "matchers": [
             {
-              "level": "info"
+              "level": "warn"
             }
           ],
           "formatter": {

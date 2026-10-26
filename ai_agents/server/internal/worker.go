@@ -126,6 +126,14 @@ func isInProcessGroup(pid, pgid int) bool {
 }
 
 func (w *Worker) start(req *StartReq) (err error) {
+// Temporary configurations can contain provider credentials. Remove on failed
+// launch as well as normal/crashed process exit, not while the worker runs.
+started := false
+defer func() {
+if !started {
+os.Remove(w.PropertyJsonFile)
+}
+}()
 	// Use separate arguments to avoid shell injection
 	slog.Info("Worker start", "requestId", req.RequestId, "property", w.PropertyJsonFile, "tenappDir", w.TenappDir, logTag)
 	cmd := exec.Command("tman", "run", "start", "--", "--property", w.PropertyJsonFile)
@@ -143,16 +151,16 @@ func (w *Worker) start(req *StartReq) (err error) {
 	var stdoutWriter, stderrWriter io.Writer
 	var logFile *os.File
 
-	if w.Log2Stdout {
+if w.Log2Stdout || !workerLogFilesEnabled() {
 		// Write logs to stdout and stderr
 		stdoutWriter = os.Stdout
 		stderrWriter = os.Stderr
 	} else {
 		// Open the log file for writing
-		logFile, err := os.OpenFile(w.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+logFile, err = openPrivateLog(w.LogFile)
 		if err != nil {
 			slog.Error("Failed to open log file", "err", err, "requestId", req.RequestId, logTag)
-			// return err
+return err
 		}
 
 		// Write logs to the log file
@@ -174,9 +182,13 @@ func (w *Worker) start(req *StartReq) (err error) {
 	cmd.Stderr = stderrPrefixWriter
 
 	if err = cmd.Start(); err != nil {
+if logFile != nil {
+logFile.Close()
+}
 		slog.Error("Worker start failed", "err", err, "requestId", req.RequestId, logTag)
 		return
 	}
+started = true
 
 	pid := cmd.Process.Pid
 
@@ -204,6 +216,7 @@ func (w *Worker) start(req *StartReq) (err error) {
 
 	// Monitor the background process in a separate goroutine
 	go func() {
+defer os.Remove(w.PropertyJsonFile)
 		err := cmd.Wait() // Wait for the command to exit
 		if err != nil {
 			slog.Error("Worker process failed", "err", err, "requestId", req.RequestId, logTag)

@@ -51,10 +51,10 @@ class OpenAILLM2Extension(AsyncLLM2BaseExtension):
         try:
             self.client = OpenAIChatGPT(async_ten_env, self.config)
             async_ten_env.log_info(
-                f"initialized with max_tokens: {self.config.max_tokens}, model: {self.config.model}"
+                f"OpenAI initialized with max_tokens: {self.config.max_tokens} (model omitted)"
             )
         except Exception as err:
-            async_ten_env.log_info(f"Failed to initialize OpenAIChatGPT: {err}")
+            async_ten_env.log_error(f"Failed to initialize OpenAIChatGPT: {type(err).__name__}")
 
     async def on_stop(self, async_ten_env: AsyncTenEnv) -> None:
         async_ten_env.log_info("on_stop")
@@ -69,9 +69,7 @@ class OpenAILLM2Extension(AsyncLLM2BaseExtension):
     ) -> LLMResponseRetrievePrompt:
         """Retrieve the current prompt from config."""
         prompt = self.config.prompt if self.config else ""
-        async_ten_env.log_info(
-            f"Retrieved prompt for request_id: {request.request_id}"
-        )
+        async_ten_env.log_debug("Retrieved prompt (content and request ID omitted)")
         return LLMResponseRetrievePrompt(prompt=prompt)
 
     def on_call_chat_completion(

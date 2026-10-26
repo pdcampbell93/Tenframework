@@ -81,6 +81,8 @@ class ElevenLabsTTS2Synthesizer:
             for key in param_map:
                 value = self.config.params.get(key)
                 if value is not None:
+                    if isinstance(value, bool):
+                        value = str(value).lower()
                     self.query_params += f"&{key}={value}"
 
             # handle output_format and sample_rate
@@ -95,7 +97,7 @@ class ElevenLabsTTS2Synthesizer:
                     self.config.sample_rate = int(output_format.split("_")[1])
                 except Exception as e:
                     self.ten_env.log_error(
-                        f"output_format format error: {output_format}, error: {e}"
+                        f"output_format format error: {type(e).__name__}"
                     )
                     self.error_callback(
                         "output_format format error",
@@ -110,11 +112,11 @@ class ElevenLabsTTS2Synthesizer:
     def _process_ws_exception(self, exp) -> None | Exception:
         """Handle websocket connection exceptions and decide whether to reconnect"""
         self.ten_env.log_debug(
-            f"Websocket internal error during connecting: {exp}."
+            f"Websocket connection error: {type(exp).__name__}"
         )
         self._connect_exp_cnt += 1
         if self._connect_exp_cnt > 5:  # MAX_RETRY_TIMES_FOR_TRANSPORT
-            self.ten_env.log_error(f"Max retries (5) exceeded: {str(exp)}")
+            self.ten_env.log_error(f"Max retries (5) exceeded: {type(exp).__name__}")
             return exp
         return None  # Return None to continue reconnection
 
@@ -122,7 +124,7 @@ class ElevenLabsTTS2Synthesizer:
         """Main websocket connection monitoring and reconnection logic"""
         try:
             self.ten_env.log_debug(
-                f"vendor_status:  start websocket connection to: 	{self.uri}",
+                "vendor_status: starting ElevenLabs websocket connection (URL omitted)",
                 category=LOG_CATEGORY_VENDOR,
             )
             # Use websockets.connect's automatic reconnection mechanism
@@ -135,7 +137,7 @@ class ElevenLabsTTS2Synthesizer:
                 self.send_text_in_connection = False
                 try:
                     self.ten_env.log_debug(
-                        f"vendor_status:  connect to: 	{self.uri} successfully",
+                        "vendor_status: ElevenLabs websocket connected",
                         category=LOG_CATEGORY_VENDOR,
                     )
                     if self._session_closing:
@@ -156,7 +158,7 @@ class ElevenLabsTTS2Synthesizer:
 
                 except websockets.ConnectionClosed as e:
                     self.ten_env.log_debug(
-                        f"vendor_status:  connection closed as {e}",
+                        f"vendor_status: connection closed: {type(e).__name__}",
                         category=LOG_CATEGORY_VENDOR,
                     )
                     if not self._session_closing:
@@ -181,7 +183,7 @@ class ElevenLabsTTS2Synthesizer:
 
         except Exception as e:
             self.ten_env.log_debug(
-                f"vendor_status:  connection closed as {e}",
+                f"vendor_status: connection closed: {type(e).__name__}",
                 category=LOG_CATEGORY_VENDOR,
             )
         finally:
@@ -269,7 +271,7 @@ class ElevenLabsTTS2Synthesizer:
                     await ws.send(json.dumps({"text": text_data.text}))
 
                     self.ten_env.log_debug(
-                        f"send_text_to_tts_server:  {text_data.text} of request_id: {text_data.request_id}",
+                        f"send_text_to_tts_server: chars={len(text_data.text)}",
                         category=LOG_CATEGORY_VENDOR,
                     )
                     if self.cur_request_id != text_data.request_id:
@@ -290,10 +292,10 @@ class ElevenLabsTTS2Synthesizer:
             raise
         except Exception as e:
             self.ten_env.log_debug(
-                f"vendor_status: Exception in send_loop: {e}",
+                f"vendor_status: Exception in send_loop: {type(e).__name__}",
                 category=LOG_CATEGORY_VENDOR,
             )
-            self.ten_env.log_error(f"Exception in send_loop: {e}")
+            self.ten_env.log_error(f"Exception in send_loop: {type(e).__name__}")
             raise e
 
     async def _receive_loop(self, ws: ClientConnection) -> None:
@@ -319,7 +321,7 @@ class ElevenLabsTTS2Synthesizer:
                             for char in chars:
                                 text += char
                         self.ten_env.log_debug(
-                            f"Received alignment from WebSocket: {text}"
+                            f"Received alignment from WebSocket: chars={len(text)}"
                         )
 
                     if data.get("isFinal"):
@@ -355,21 +357,23 @@ class ElevenLabsTTS2Synthesizer:
                         return
 
                     if data.get("error"):
+                        raw_code = data.get("code")
+                        safe_code = str(raw_code) if type(raw_code) is int else "unknown"
                         error_info = ModuleErrorVendorInfo(
                             vendor="elevenlabs",
-                            code=str(data.get("code", 0)),
-                            message=data.get("error", "Unknown error"),
+                            code=safe_code,
+                            message="ElevenLabs provider error (details omitted)",
                         )
                         error_code = ModuleErrorCode.NON_FATAL_ERROR
                         if data.get("code") == 1008:
                             error_code = ModuleErrorCode.FATAL_ERROR
                         self.ten_env.log_error(
-                            f"vendor_error: code: {data.get('code') } reason: {data.get('error')}",
+                            f"ElevenLabs vendor_error: code={safe_code}",
                             category=LOG_CATEGORY_VENDOR,
                         )
                         if self.error_callback:
                             module_error = ModuleError(
-                                message=data["error"],
+                                message=f"ElevenLabs provider error: code={safe_code}",
                                 module=ModuleType.TTS,
                                 code=error_code,
                                 vendor_info=error_info,
@@ -380,7 +384,7 @@ class ElevenLabsTTS2Synthesizer:
 
                 except json.JSONDecodeError as e:
                     self.ten_env.log_error(
-                        f"Failed to parse WebSocket message: {e}"
+                        f"Failed to parse WebSocket message: {type(e).__name__}"
                     )
                     continue
 
@@ -392,7 +396,7 @@ class ElevenLabsTTS2Synthesizer:
             raise
         except Exception as e:
             self.ten_env.log_debug(
-                f"vendor_status: Exception in receive_loop: {e}",
+                f"vendor_status: Exception in receive_loop: {type(e).__name__}",
                 category=LOG_CATEGORY_VENDOR,
             )
             raise e
@@ -527,7 +531,7 @@ class ElevenLabsTTS2Client:
 
                 await asyncio.sleep(5.0)  # Check every 5 seconds
             except Exception as e:
-                self.ten_env.log_error(f"Error in cleanup task: {e}")
+                self.ten_env.log_error(f"Error in cleanup task: {type(e).__name__}")
                 await asyncio.sleep(5.0)
 
     def cancel(self) -> None:
@@ -587,7 +591,7 @@ class ElevenLabsTTS2Client:
                 await synthesizer.close()
             except Exception as e:
                 self.ten_env.log_error(
-                    f"Error closing cancelled synthesizer: {e}"
+                    f"Error closing cancelled synthesizer: {type(e).__name__}"
                 )
 
         self.cancelled_synthesizers.clear()
@@ -620,7 +624,7 @@ class ElevenLabsTTS2:
             raise
         except Exception as e:
             self.client.ten_env.log_error(
-                f"Error getting synthesized audio: {e}"
+                f"Error getting synthesized audio: {type(e).__name__}"
             )
             raise
 

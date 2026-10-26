@@ -45,7 +45,7 @@ async def _send_cmd(
     cmd.set_dests([loc])
     if payload is not None:
         cmd.set_property_from_json(None, json.dumps(payload))
-    ten_env.log_debug(f"send_cmd: cmd_name {cmd_name}, dest {dest}")
+    ten_env.log_debug("send_cmd: dispatching command (payload omitted)")
 
     return await ten_env.send_cmd(cmd)
 
@@ -63,11 +63,11 @@ async def _send_cmd_ex(
     cmd.set_dests([loc])
     if payload is not None:
         cmd.set_property_from_json(None, json.dumps(payload))
-    ten_env.log_debug(f"send_cmd_ex: cmd_name {cmd_name}, dest {dest}")
+    ten_env.log_debug("send_cmd_ex: dispatching command (payload omitted)")
 
     async for cmd_result, ten_error in ten_env.send_cmd_ex(cmd):
         if cmd_result:
-            ten_env.log_debug(f"send_cmd_ex: cmd_result {cmd_result}")
+            ten_env.log_debug("send_cmd_ex: result received (content omitted)")
             yield cmd_result, ten_error
 
 
@@ -84,5 +84,5 @@ async def _send_data(
     data.set_dests([loc])
     if payload is not None:
         data.set_property_from_json(None, json.dumps(payload))
-    ten_env.log_debug(f"send_data: data_name {data_name}, dest {dest}")
+    ten_env.log_debug("send_data: dispatching data (payload omitted)")
     return await ten_env.send_data(data)

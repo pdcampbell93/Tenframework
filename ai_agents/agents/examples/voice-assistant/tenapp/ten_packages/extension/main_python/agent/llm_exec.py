@@ -5,7 +5,6 @@
 #
 import asyncio
 import json
-import traceback
 from typing import Awaitable, Callable, Literal, Optional
 from ten_ai_base.const import CMD_PROPERTY_RESULT
 from ten_ai_base.helper import AsyncQueue
@@ -118,7 +117,7 @@ class LLMExec:
                     await self.on_response(self.ten_env, "", text, True)
             except Exception as e:
                 self.ten_env.log_error(
-                    f"Error processing input queue: {traceback.format_exc()}"
+                    f"Error processing input queue: {type(e).__name__}"
                 )
             finally:
                 self.current_task = None
@@ -130,7 +129,7 @@ class LLMExec:
         Queue a new message to the LLM context.
         This method appends the new message to the existing context and sends it to the LLM.
         """
-        ten_env.log_info(f"_queue_context: {new_message}")
+        ten_env.log_debug("Queued conversation context (content omitted)")
         self.contexts.append(new_message)
         # Recent conversation is transient; approved durable notes are retrieved
         # separately. Do not retain an unbounded transcript in worker memory.
@@ -176,13 +175,13 @@ class LLMExec:
                 if cmd_result.get_status_code() == StatusCode.OK:
                     response_json, _ = cmd_result.get_property_to_json(None)
                     ten_env.log_info(
-                        f"_send_to_llm: response_json {response_json}"
+                        "LLM response received (content omitted)"
                     )
                     completion = parse_llm_response(response_json)
                     await self._handle_llm_response(completion)
 
     async def _handle_llm_response(self, llm_output: LLMResponse | None):
-        self.ten_env.log_info(f"_handle_llm_response: {llm_output}")
+        self.ten_env.log_debug("Handling LLM response (content omitted)")
 
         match llm_output:
             case LLMResponseMessageDelta():
@@ -213,7 +212,7 @@ class LLMExec:
                     )
             case LLMResponseToolCall():
                 self.ten_env.log_info(
-                    f"_handle_llm_response: invoking tool call {llm_output.name}"
+                    "Invoking tool call (arguments and name omitted)"
                 )
                 src_extension_name = self.tool_registry.get(llm_output.name)
                 result, _ = await _send_cmd(
@@ -230,7 +229,7 @@ class LLMExec:
                     r, _ = result.get_property_to_json(CMD_PROPERTY_RESULT)
                     tool_result: LLMToolResult = json.loads(r)
 
-                    self.ten_env.log_info(f"tool_result: {tool_result}")
+                    self.ten_env.log_debug("Tool result received (content omitted)")
 
                     context_function_call = LLMMessageFunctionCall(
                         name=llm_output.name,
@@ -255,7 +254,7 @@ class LLMExec:
                             )
                         else:
                             self.ten_env.log_error(
-                                f"Unknown tool result content: {result_content}"
+                                "Unknown tool result content type"
                             )
                     elif tool_result["type"] == "requery":
                         pass
